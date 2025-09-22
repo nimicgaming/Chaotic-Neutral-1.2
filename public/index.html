@@ -105,9 +105,7 @@
   <!-- Floating Play button (positioned by JS just above the selected card) -->
   <button id="playFloat">Play</button>
 
-  <script src="/socket.io/socket.io.js"></script>
-<script>
-
+  <script src="/socket.io/socket.io.js">
 
 // === Swap interaction (client) ===
 window.canSwap = false;
@@ -128,7 +126,6 @@ document.addEventListener('click', (e) => {
     window.swapSourceId = null;
   }
 });
-
 
 </script>
   <script>
@@ -2278,37 +2275,173 @@ document.addEventListener('click', (ev)=>{
 </script>
 
 <!-- Non-invasive Touch→Mouse Adapter (keeps existing code unchanged) -->
-
-
-<script id="token-tap-only">
+<script id="touch-adapter">
 (function(){
-  if (window.__CN_TokenTapOnly) return; window.__CN_TokenTapOnly = true;
+  if (window.__cnTouchAdapter) return;
+  window.__cnTouchAdapter = true;
+
+  // Only activate on touch-capable devices
   var isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
   if (!isTouch) return;
+
+  var board = document.getElementById('board');
+  if (!board) return;
+
+  // Helper: should we convert this touch to mouse events?
+  function wantsAdapter(target){
+    if (!target) return false;
+    // Must be inside the board
+    if (!target.closest('#board')) return false;
+
+    // Allow buttons for abilities, but avoid generic buttons like End Turn
+    if (target.closest('.primaryBtn, .specialBtn')) return true;
+    if (target.closest('#end-turn, #playFloat, #btnHome, button:not(.primaryBtn):not(.specialBtn)')) return false;
+
+    // Allow dragging tokens and interacting with hand/cards
+    if (target.closest('.token, #hand, #hand .card, .card')) return true;
+
+    // Inside scrollable side panels? only adapt if touching ability buttons
+    if (target.closest('.panel')) return false;
+
+    // Otherwise allow taps on the board/tiles/ghosts for targeting
+    if (target.closest('.tile, .ghost')) return true;
+    if (target === board) return true;
+
+    return false;
+  }
+
+  function synthMouse(type, x, y, opts){
+    var ev = new MouseEvent(type, {
+      bubbles: true,
+      cancelable: true,
+      view: window,
+      clientX: x, clientY: y,
+      screenX: x, screenY: y,
+      buttons: (type === 'mousedown' || type === 'mousemove') ? 1 : 0,
+      ...opts
+    });
+    return ev;
+  }
+
+  var dragging = false;
+
+  document.addEventListener('touchstart', function(e){
+    var t = e.touches && e.touches[0];
+    if (!t) return;
+    var el = document.elementFromPoint(t.clientX, t.clientY) || e.target;
+    if (!wantsAdapter(el)) return;
+
+    // Prefer specific interactive element; else fall back to board
+    var target = el.closest('.token, .primaryBtn, .specialBtn, #hand .card, .card') || board;
+
+    // Dispatch mousedown
+    target.dispatchEvent(synthMouse('mousedown', t.clientX, t.clientY));
+    dragging = true;
+
+    // prevent native scrolling/zooming when interacting on board
+    e.preventDefault();
+  }, { passive: false });
+
+  document.addEventListener('touchmove', function(e){
+    if (!dragging) return;
+    var t = e.touches && e.touches[0];
+    if (!t) return;
+    // send to document; existing code listens on document for mousemove
+    document.dispatchEvent(synthMouse('mousemove', t.clientX, t.clientY));
+    e.preventDefault();
+  }, { passive: false });
+
+  function endDragFromTouch(e){
+    if (!dragging) return;
+    var t = (e.changedTouches && e.changedTouches[0]) || (e.touches && e.touches[0]);
+    var cx = t ? t.clientX : 0, cy = t ? t.clientY : 0;
+    document.dispatchEvent(synthMouse('mouseup', cx, cy));
+    dragging = false;
+  }
+
+  document.addEventListener('touchend', function(e){ endDragFromTouch(e); }, { passive: false });
+  document.addEventListener('touchcancel', function(e){ endDragFromTouch(e); }, { passive: false });
+
+  // Nice-to-have: remove tap highlight & text selection during play
+  try {
+    var css = document.createElement('style');
+    css.textContent = `
+      body { -webkit-tap-highlight-color: transparent; }
+      #board, .token, #hand { touch-action: none; user-select: none; -webkit-user-select: none; }
+    `;
+    document.head.appendChild(css);
+  } catch(_) {}
+})();
+</script>
+
+<script id="token-drag-touch">
+(function(){
+  if (window.__CN_TokenDragTouch) return; window.__CN_TokenDragTouch = true;
+  var isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+  if (!isTouch) return;
+
   var board = document.getElementById('board'); if (!board) return;
 
-  var intercepting = false;
   function abilityActive(){ try { return !!(window.abilitySel); } catch(_) { return false; } }
 
-  board.addEventListener('pointerdown', function(e){
-    if (!abilityActive()) return;
+  var dragging = false;
+  var activeTarget = null;
+
+  function wantsDragTarget(el){
+    if (!el) return null;
+    if (!el.closest) return null;
+    var tok = el.closest('.token');
+    if (tok) return tok;
+    if (el.closest('#board')) return board;
+    return null;
+  }
+
+  document.addEventListener('pointerdown', function(e){
     if (e.pointerType !== 'touch') return;
-    var tok = e.target && e.target.closest && e.target.closest('.token');
-    if (!tok) return;
-    intercepting = true;
-    e.preventDefault(); e.stopPropagation();
+    if (abilityActive()) return; // handled by token-tap-only for targeting
+
+    var t = wantsDragTarget(e.target);
+    if (!t) return;
+
+    activeTarget = t;
+    dragging = true;
+
+    // Start the normal mouse drag sequence at this point
+    var down = new MouseEvent('mousedown', { bubbles:true, cancelable:true, clientX:e.clientX, clientY:e.clientY, view:window, buttons:1 });
+    activeTarget.dispatchEvent(down);
+
+    e.preventDefault();
+    e.stopPropagation();
   }, true);
 
-  document.addEventListener('pointerup', function(e){
-    if (!intercepting) return;
-    if (e.pointerType !== 'touch') { intercepting = false; return; }
-    var el = document.elementFromPoint(e.clientX, e.clientY);
-    var tok = el && el.closest ? el.closest('.token') : null;
-    if (!tok) { intercepting = false; return; }
-    tok.dispatchEvent(new MouseEvent('click', { bubbles:true, cancelable:true, clientX:e.clientX, clientY:e.clientY, view:window }));
-    e.preventDefault(); e.stopPropagation();
-    intercepting = false;
+  document.addEventListener('pointermove', function(e){
+    if (!dragging) return;
+    if (e.pointerType !== 'touch') return;
+
+    // Continue drag
+    var move = new MouseEvent('mousemove', { bubbles:true, cancelable:true, clientX:e.clientX, clientY:e.clientY, view:window, buttons:1 });
+    document.dispatchEvent(move);
+
+    e.preventDefault();
+    e.stopPropagation();
   }, true);
+
+  function endDrag(e){
+    if (!dragging) return;
+    if (e.pointerType && e.pointerType !== 'touch') return;
+
+    var up = new MouseEvent('mouseup', { bubbles:true, cancelable:true, clientX:e.clientX, clientY:e.clientY, view:window });
+    document.dispatchEvent(up);
+
+    dragging = false;
+    activeTarget = null;
+
+    e.preventDefault();
+    e.stopPropagation();
+  }
+
+  document.addEventListener('pointerup', endDrag, true);
+  document.addEventListener('pointercancel', endDrag, true);
 })();
 </script>
 </body>
