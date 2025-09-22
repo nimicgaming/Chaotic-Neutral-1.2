@@ -3,7 +3,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
   <title>Chaotic Neutral — Game</title>
   <link rel="stylesheet" href="style.css" />
   <style>
@@ -52,10 +52,10 @@
     body { background: transparent !important; }
   </style>
 </head>
-<body>
-  <a id="btnHome" href="/home" class="top-home-btn">⟵ Home</a>
-  <div id="seriesScoreTop" class="glass"><div class="label">Control Points</div><div class="score"><span id="seriesP1">0</span> — <span id="seriesP2">0</span></div></div>
+<body><div id="seriesScoreTop" class="glass"><div class="label">Control Points</div><div class="score"><span id="seriesP1">0</span> — <span id="seriesP2">0</span></div></div>
   <div id="board">
+    <a id="btnHome" href="/home">⟵ Home</a>
+
     <div class="center-dot"></div>
 
     <div id="label1" class="tag" style="display:none"></div>
@@ -66,7 +66,7 @@
     <div id="enemyPanel" class="panel"></div>
 
     <!-- [ENERGY] Player energy bar -->
-    <div id="energyBox" class="glass">
+    <div  id="energyBox" class="glass">
       <div class="label">Energy</div>
       <div class="energybar"><div class="fill" style="width:0%"></div></div>
       <div class="energyNums"><span id="energyVal">0</span> / <span id="energyMax">10</span></div>
@@ -92,7 +92,7 @@
       <div class="slot" id="discardOtherSlot">—</div>
     </div>
 
-    <button id="end-turn">End Turn</button>
+    <button  id="end-turn">End Turn</button>
 
     <div id="gameover">
       <div class="box">
@@ -105,7 +105,9 @@
   <!-- Floating Play button (positioned by JS just above the selected card) -->
   <button id="playFloat">Play</button>
 
-  <script src="/socket.io/socket.io.js">
+  <script src="/socket.io/socket.io.js"></script>
+<script>
+
 
 // === Swap interaction (client) ===
 window.canSwap = false;
@@ -126,6 +128,7 @@ document.addEventListener('click', (e) => {
     window.swapSourceId = null;
   }
 });
+
 
 </script>
   <script>
@@ -185,20 +188,23 @@ document.addEventListener('click', (e) => {
     let GAME_ENDED = false;
 
     /* ---------- UI placement helpers ---------- */
-    function placeEndButton(){
+    
+    // Guard to prevent random drift from non-resize interactions
+    let __allowRepositionEndBtn = false;
+    function placeEndButton(force=false){
+      if (!force && !__allowRepositionEndBtn) return;
       const boardRect = board.getBoundingClientRect();
       const handRect  = hand.getBoundingClientRect();
       const btnRect   = endBtn.getBoundingClientRect();
       const gap = 16;
       let left = (handRect.left - boardRect.left) - btnRect.width - gap;
       if (left < 12) left = 12;
-      endBtn.style.left = left + 'px';
-    }
-    window.addEventListener('resize', ()=>{
-      placeEndButton();
-      if (selectedCard) positionPlayFloat(selectedCard);
-    });
-    function positionEnergyBox(){
+      }
+    window.addEventListener('resize', ()=>{ /* keep HUD fixed */ if (selectedCard) positionPlayFloat(selectedCard); });
+    
+    let __allowRepositionEnergy = false;
+    function positionEnergyBox(force=false){
+      if (!force && !__allowRepositionEnergy) return;
       const ally = document.getElementById('allyPanel');
       const energy = document.getElementById('energyBox');
       const handWrap = document.getElementById('handWrap');
@@ -206,23 +212,13 @@ document.addEventListener('click', (e) => {
       const ar = ally.getBoundingClientRect();
       const hr = handWrap ? handWrap.getBoundingClientRect() : { top: window.innerHeight };
       const ebh = energy.offsetHeight || 66;
-
-      // Place to the right of the left panel, further down (~78%)
       const left = Math.round(ar.right + 10);
       let top = Math.round(ar.top + ar.height * 0.655);
-
-      // Clamp so we don't overlap the hand/cards
       const maxTop = hr.top - ebh - 16;
       const minTop = ar.top + 20;
       top = Math.max(minTop, Math.min(maxTop, top));
-
-      energy.style.left = left + 'px';
-      energy.style.top  = top + 'px';
-      energy.style.bottom = 'auto';
-    }
-    window.addEventListener('resize', positionEnergyBox);
-
-
+      }
+    window.addEventListener('resize', ()=>{ /* keep HUD fixed */ });
     /* ---------- Board geometry ---------- */
     const centerX = 960, centerY = 540 - 50;
     const hexR = 58, hexW = Math.sqrt(3) * hexR, hexH = 2 * hexR, vSpace = 0.75 * hexH;
@@ -500,7 +496,7 @@ const ABIL_OVERRIDES = {
         color:'#93c47d',
         maxHp:10,
         primary:{ type:'heal', heal:2, range:2, name:'Nectar of Life' },
-        special:{ type:'petal', heal:3, range:99, radius:1, name:'Healing Blossom', energyCost:3 }
+        special:{ type:'petal', heal:3, range:99, radius:1, name:'Healing Blossom', energyCost:4 }
       },
 
       Trickster: {
@@ -714,8 +710,9 @@ function renderStatusRow(id){
         const startTile = token.dataset.tile;
 
         const onMove = (ev)=>{
-          token.style.left = `${ev.pageX}px`;
-          token.style.top  = `${ev.pageY}px`;
+          const pt = screenToBoard(ev.clientX, ev.clientY);
+          token.style.left = `${pt.x}px`;
+          token.style.top  = `${pt.y}px`;
         };
 
         const onUp = (ev)=>{
@@ -723,9 +720,8 @@ function renderStatusRow(id){
           document.removeEventListener('mouseup', onUp);
           clearNonBlossomGhosts();
 
-          const rawX = ev.pageX - board.offsetLeft;
-          const rawY = ev.pageY - board.offsetTop;
-          const logicalPt = toLogical(rawX, rawY);
+          const pt = screenToBoard(ev.clientX, ev.clientY);
+          const logicalPt = toLogical(pt.x, pt.y);
           const snap = nearestTile(logicalPt.x, logicalPt.y);
 
           
@@ -1181,8 +1177,8 @@ const CARD_COST = {
       const name = (selectedCard && selectedCard.dataset.card) || armedCardName;
       if (!name) return;
 
-      const rect = board.getBoundingClientRect();
-      const logicalPt = toLogical(e.clientX - rect.left, e.clientY - rect.top);
+      const __pt = screenToBoard(e.clientX, e.clientY);
+      const logicalPt = toLogical(__pt.x, __pt.y);
       const snap = nearestTile(logicalPt.x, logicalPt.y);
 
       if (name === 'Wall'){
@@ -1513,7 +1509,26 @@ function insertIntoFirstPlaceholder(el){
     }, true);
 
     // End turn
-    endBtn.addEventListener('click', (ev)=>{ ev.stopPropagation(); if (GAME_ENDED) return; if (playerRole !== currentTurn) return; try { abilitySel = null; document.querySelectorAll('.primaryBtn').forEach(b=>b.classList.remove('active')); document.querySelectorAll('.charCard').forEach(c=>c.style.outline=''); if (typeof clearGhosts==='function') clearGhosts(); } catch(_){} socket.emit('endTurn'); });
+    endBtn.addEventListener('click', (ev)=>{ ev.stopPropagation(); 
+    // Keyboard shortcuts: Space = End Turn, Esc = Home
+    document.addEventListener('keydown', (e) => {
+      const activeTag = (document.activeElement && document.activeElement.tagName) || '';
+      const typing = activeTag === 'INPUT' || activeTag === 'TEXTAREA' || activeTag === 'SELECT' || document.activeElement?.isContentEditable;
+      if (typing) return;
+      // Space -> End Turn (same checks as button)
+      if (e.code === 'Space' || e.key === ' ') {
+        e.preventDefault();
+        if (!GAME_ENDED && playerRole === currentTurn) {
+          endBtn.click();
+        }
+      }
+      // Escape -> Back to Home
+      if (e.code === 'Escape' || e.key === 'Escape') {
+        e.preventDefault();
+        location.href = '/home';
+      }
+    }, { passive: false });
+if (GAME_ENDED) return; if (playerRole !== currentTurn) return; try { abilitySel = null; document.querySelectorAll('.primaryBtn').forEach(b=>b.classList.remove('active')); document.querySelectorAll('.charCard').forEach(c=>c.style.outline=''); if (typeof clearGhosts==='function') clearGhosts(); } catch(_){} socket.emit('endTurn'); });
 
     // Simple target flow: Fireball / Entangle / Iron Skin (Play → click unit)
     board.addEventListener('mousedown', (e)=>{
@@ -1630,7 +1645,9 @@ function insertIntoFirstPlaceholder(el){
 socket.on('fullState', full=>{ renderControlFromState(full);
       window.__lastFullState = full;
       updateNameTags(full);
-      positionEnergyBox();
+      positionEnergyBox(true);
+      // Lock UI anchors so they don't drift after interactions
+      try{ window.__uiLockHard = true; }catch(e){}
 
       const tokensState = full.tokens || {};
       const serverChars = full.chars || {};
@@ -1952,8 +1969,8 @@ function updateEntangleOverlays(charsState){
       if (!__tileHit) return;
 
       // Snap to nearest tile under the click
-      const rect = board.getBoundingClientRect();
-      const logicalPt = toLogical(e.clientX - rect.left, e.clientY - rect.top);
+      const __pt = screenToBoard(e.clientX, e.clientY);
+      const logicalPt = toLogical(__pt.x, __pt.y);
       const snap = nearestTile(logicalPt.x, logicalPt.y);
 
       const startTile = tileOfToken(sel.sourceId);
@@ -2114,117 +2131,184 @@ document.addEventListener('click', (ev)=>{
 })();
 </script>
 
-  <script src="/js/geometry.js"></script>
-  <script src="/js/effects.js"></script>
 
-<!-- Touch→Mouse Adapter v2: tap = click, move/hold = drag -->
-<script id="touch-adapter">
+<script id="mobileFit">
 (function(){
-  if (window.__cnTouchAdapterV2) return;
-  window.__cnTouchAdapterV2 = true;
-
-  var isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
-  if (!isTouch) return;
-
-  var board = document.getElementById('board');
+  const board = document.getElementById('board');
   if (!board) return;
 
-  var MOVE_THRESHOLD = 8;
-  var HOLD_MS = 260;
+  window.UI_SCALE = 1;
 
-  function wantsAdapter(target){
-    if (!target) return false;
-    if (!target.closest('#board')) return false;
-    if (target.closest('.token, .tile, .ghost')) return true;
-    if (target.closest('#hand .card, .card')) return true;
-    if (target.closest('.primaryBtn, .specialBtn')) return true;
-    if (target.closest('#end-turn, #btnHome, button:not(.primaryBtn):not(.specialBtn)')) return false;
-    return target === board;
+  function fitBoard(){
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const sx = vw / 1920;
+    const sy = vh / 1080;
+    const scale = Math.min(sx, sy);
+    window.UI_SCALE = scale;
+
+    board.style.transformOrigin = 'top left';
+    board.style.transform = 'scale(' + scale + ')';
+    board.style.left = '0px';
+    board.style.top  = '0px';
   }
 
-  function mouse(type, x, y, target, opts){
-    var ev = new MouseEvent(type, {
-      bubbles: true, cancelable: true, view: window,
-      clientX: x, clientY: y, buttons: (type === 'mousedown' || type === 'mousemove') ? 1 : 0,
-      ...(opts || {})
-    });
-    (target || document).dispatchEvent(ev);
-  }
+  window.screenToBoard = function(clientX, clientY){
+    const rect = board.getBoundingClientRect();
+    const s = window.UI_SCALE || 1;
+    return { x: (clientX - rect.left) / s, y: (clientY - rect.top) / s };
+  };
 
-  var state = { activeEl: null, startX: 0, startY: 0, dragging: false, pressTimer: null, downSent: false };
+  ['load','resize','orientationchange'].forEach(evt => {
+    window.addEventListener(evt, fitBoard, { passive: true });
+  });
+  fitBoard();
+})();
+</script>
 
-  function reset(){
-    clearTimeout(state.pressTimer); state.pressTimer = null;
-    state.activeEl = null; state.dragging = false; state.downSent = false;
-  }
 
-  function beginDrag(){
-    if (state.dragging) return;
-    state.dragging = true;
-    mouse('mousedown', state.startX, state.startY, state.activeEl);
-    state.downSent = true;
-  }
-
-  document.addEventListener('touchstart', function(e){
-    var t = e.touches && e.touches[0];
-    if (!t) return;
-    var el = document.elementFromPoint(t.clientX, t.clientY) || e.target;
-    if (!wantsAdapter(el)) return;
-
-    state.activeEl = el.closest('.token, .tile, .ghost, #hand .card, .card, .primaryBtn, .specialBtn') || board;
-    state.startX = t.clientX; state.startY = t.clientY;
-    state.dragging = false; state.downSent = false;
-    clearTimeout(state.pressTimer);
-    state.pressTimer = setTimeout(function(){ beginDrag(); }, HOLD_MS);
-    e.preventDefault();
-  }, { passive: false });
-
-  document.addEventListener('touchmove', function(e){
-    var t = e.touches && e.touches[0];
-    if (!t || !state.activeEl) return;
-
-    var dx = t.clientX - state.startX;
-    var dy = t.clientY - state.startY;
-    var dist2 = dx*dx + dy*dy;
-
-    if (!state.dragging && dist2 >= MOVE_THRESHOLD*MOVE_THRESHOLD){
-      beginDrag();
+<script id="control-mode-ui">
+(function(){
+  try{
+    if (typeof MODE !== 'undefined' && MODE === 'control') {
+      var topBar = document.getElementById('seriesScoreTop');
+      if (topBar) topBar.style.display = 'none';
+      var box = document.getElementById('controlScoreBox');
+      if (box) box.style.display = 'block';
     }
-    if (state.dragging){
-      mouse('mousemove', t.clientX, t.clientY, document);
-    }
-    e.preventDefault();
-  }, { passive: false });
+  }catch(e){}
+})();
+</script>
 
-  function finishInteraction(e){
-    if (!state.activeEl) return;
-    var t = (e.changedTouches && e.changedTouches[0]) || (e.touches && e.touches[0]);
-    var cx = t ? t.clientX : state.startX, cy = t ? t.clientY : state.startY;
-    clearTimeout(state.pressTimer);
 
-    if (state.dragging){
-      mouse('mouseup', cx, cy, document);
-      reset(); return;
-    }
-
-    // TAP: simulate standard click sequence
-    mouse('mousedown', cx, cy, state.activeEl);
-    mouse('mouseup',   cx, cy, state.activeEl);
-    state.activeEl.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window, clientX: cx, clientY: cy }));
-    reset();
+<!-- Non-invasive HUD locker: does not edit existing functions -->
+<script id="hud-lock-noninvasive">
+(function(){
+  function getBoard(){ return document.getElementById('board'); }
+  function getScale(){
+    var b = getBoard();
+    if (!b) return 1;
+    var r = b.getBoundingClientRect();
+    return (r.width / 1920) || 1;
+  }
+  function vpToBoard(x, y){
+    var b = getBoard(); if (!b) return {x: x, y: y};
+    var r = b.getBoundingClientRect(), s = getScale();
+    return { x: (x - r.left) / s, y: (y - r.top) / s };
   }
 
-  document.addEventListener('touchend', function(e){ finishInteraction(e); }, { passive: false });
-  document.addEventListener('touchcancel', function(){ reset(); }, { passive: false });
+  function lockHUD(){
+    if (window.__uiLockHard) return;
+    try{
+      var b = getBoard(); if (!b) return;
+      var s = getScale();
+      var hand = document.getElementById('hand');
+      var endBtn = document.getElementById('end-turn');
+      var energy = document.getElementById('energyBox');
+      var ally = document.getElementById('allyPanel');
+      var handWrap = document.getElementById('handWrap');
 
-  try {
-    var css = document.createElement('style');
-    css.textContent = `
-      body { -webkit-tap-highlight-color: transparent; overscroll-behavior: contain; }
-      #board, .token, #hand, .card { touch-action: none; user-select: none; -webkit-user-select: none; }
-    `;
-    document.head.appendChild(css);
-  } catch(_) {}
+      // --- End Turn: align to left of hand (viewport math), then convert to board px
+      if (endBtn && hand){
+        var br = b.getBoundingClientRect();
+        var hr = hand.getBoundingClientRect();
+        var er = endBtn.getBoundingClientRect();
+        var gap_vp = 16 * s;
+        var left_vp = (hr.left - br.left) - er.width - gap_vp;
+        if (left_vp < 12 * s) left_vp = 12 * s;
+        var left_board = left_vp / s;
+        endBtn.style.position = 'absolute';
+        }
+
+      // --- Energy: place to right of ally panel and clamp above hand; convert to board px
+      if (energy && ally){
+        var br2 = b.getBoundingClientRect();
+        var ar = ally.getBoundingClientRect();
+        var hw = handWrap ? handWrap.getBoundingClientRect() : { top: window.innerHeight };
+        var ebh_vp = (energy.getBoundingClientRect().height || 66 * s);
+        var left_vp2 = Math.round(ar.right + 10);
+        var top_vp2  = Math.round(ar.top + ar.height * 0.655);
+        var maxTop_vp = hw.top - ebh_vp - 16;
+        var minTop_vp = ar.top + 20;
+        top_vp2 = Math.max(minTop_vp, Math.min(maxTop_vp, top_vp2));
+        energy.style.position = 'absolute';
+        }
+
+      // --- Control Points: if MODE==='control' and top bar was removed, recreate a simple one
+      try{
+        var mode = (typeof MODE !== 'undefined') ? MODE : (new URLSearchParams(location.search).get('mode') || 'standard');
+        if (mode === 'control'){
+          var top = document.getElementById('seriesScoreTop');
+          if (!top){
+            top = document.createElement('div');
+            top.id = 'seriesScoreTop';
+            top.className = 'glass';
+            top.style.position = 'absolute';
+            top.style.left = '50%';
+            top.style.top = '8px';
+            top.style.transform = 'translateX(-50%)';
+            top.style.zIndex = 60;
+            top.innerHTML = '<div class="label">Control Points</div><div class="score"><span id="seriesP1">0</span> — <span id="seriesP2">0</span></div>';
+            // append inside board so it scales
+            b.appendChild(top);
+          }else{
+            // if it exists but was fixed, ensure it's inside board and absolute
+            if (top.parentElement !== b){ b.appendChild(top); }
+            top.style.position = 'absolute';
+            top.style.left = '50%';
+            top.style.top = '8px';
+            top.style.transform = 'translateX(-50%)';
+            top.style.zIndex = 60;
+            top.style.display = 'flex';
+          }
+        }
+      }catch(e){ /* noop */ }
+
+    }catch(e){ /* ignore placement errors */ }
+  }
+
+  // Run after the page paints, and whenever the viewport changes
+  window.addEventListener('load', lockHUD);
+  window.addEventListener('resize', lockHUD);
+  window.addEventListener('orientationchange', lockHUD);
+  // Safety: a very lightweight, infrequent correction
+  setTimeout(lockHUD, 50);
+  setTimeout(lockHUD, 250);
+})();
+</script>
+
+<!-- Non-invasive Touch→Mouse Adapter (keeps existing code unchanged) -->
+
+
+<script id="token-tap-only">
+(function(){
+  if (window.__CN_TokenTapOnly) return; window.__CN_TokenTapOnly = true;
+  var isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+  if (!isTouch) return;
+  var board = document.getElementById('board'); if (!board) return;
+
+  var intercepting = false;
+  function abilityActive(){ try { return !!(window.abilitySel); } catch(_) { return false; } }
+
+  board.addEventListener('pointerdown', function(e){
+    if (!abilityActive()) return;
+    if (e.pointerType !== 'touch') return;
+    var tok = e.target && e.target.closest && e.target.closest('.token');
+    if (!tok) return;
+    intercepting = true;
+    e.preventDefault(); e.stopPropagation();
+  }, true);
+
+  document.addEventListener('pointerup', function(e){
+    if (!intercepting) return;
+    if (e.pointerType !== 'touch') { intercepting = false; return; }
+    var el = document.elementFromPoint(e.clientX, e.clientY);
+    var tok = el && el.closest ? el.closest('.token') : null;
+    if (!tok) { intercepting = false; return; }
+    tok.dispatchEvent(new MouseEvent('click', { bubbles:true, cancelable:true, clientX:e.clientX, clientY:e.clientY, view:window }));
+    e.preventDefault(); e.stopPropagation();
+    intercepting = false;
+  }, true);
 })();
 </script>
 </body>
