@@ -120,10 +120,10 @@ const CARD_COST = {
   Wall: 1,
   Shatter: 1,
   Swap: 4,
-  FMJ: 3,
+  FMJ: 6,
   VoodooDoll: 3,
   PolarAttraction: 4,
-  HealingPetal: 3,
+  HealingPetal: 4,
   Transform: 5,
   Replenish: 5,};
 const ENERGY_MAX = 10;
@@ -196,9 +196,9 @@ function createRoomState(roomId) {
     // class defs
     CHAR_DEFS: {
       Tank:    { maxHP: 18, primary:{ name:'Shield Bash',  type:'damage', dmg:3, range:1 }, special:{ name:'Hammer Slam', type:'damage', dmg:5, range:1, cd:3 } },
-      DPS1:    { maxHP: 12, primary:{ name:'Fire Bolt',    type:'damage', dmg:3, range:2 }, special:{ name:'Dragon’s Fury', type:'damage', dmg:4, range:2, cd:4 } },
+      DPS1:    { maxHP: 8 , primary:{ name:'Fire Bolt',    type:'damage', dmg:3, range:2 }, special:{ name:'Dragon’s Fury', type:'damage', dmg:4, range:2, cd:4 } },
       DPS2:    { maxHP: 11, primary:{ name:'Dagger Thrust',type:'damage', dmg:3, range:1 }, special:{ name:'Sneak Attack', type:'damage', dmg:5, range:1, cd:3, cond:'movedThisTurn' } },
-      Support: { maxHP: 13, primary:{ name:'Mend',         type:'heal',   heal:2, range:2 }, special:{ name:'Healing Bloom', type:'heal', heal:4, range:2, cd:3 } }
+      Support: { maxHP: 10, primary:{ name:'Mend',         type:'heal',   heal:2, range:2 }, special:{ name:'Healing Bloom', type:'heal', heal:4, range:2, cd:3 } }
     }
 ,
 
@@ -355,7 +355,7 @@ function getCharDef(st, ch){
       special: { name: 'Swap', type: 'swap', range: 99, energyCost: 4, cd: 0 }
     },
     Aimbot: {
-      maxHP: 12,
+      maxHP: 8,
       primary: { name: 'True Shot', type: 'damage', dmg: 5, range: 3, cd: 0 },
       special: { name: 'FMJ', type: 'fmj', range: 4, energyCost: 6, dmg: 5, cd: 0 }
     },
@@ -370,7 +370,7 @@ function getCharDef(st, ch){
       special: { name: 'Polar Attraction', type: 'polar', range: 2, energyCost: 4, cd: 0 }
     },
     Aimbot: {
-      maxHP: 12,
+      maxHP: 8,
       primary: { name: 'True Shot', type: 'damage', dmg: 5, range: 3, cd: 0 },
       special: { name: 'FMJ', type: 'fmj', range: 4, energyCost: 6, dmg: 5, cd: 0 }
     }
