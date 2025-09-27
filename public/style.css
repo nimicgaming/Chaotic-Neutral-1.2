@@ -1,5 +1,7 @@
 /* public/style.css */
 :root{
+  --tile-drop: 0 14px 16px rgba(0,0,0,.45);
+
   --board-scale: min(100vw / 1920, 100vh / 1080);
   --parchment-1:#cdb594; --parchment-2:#b3916e; --parchment-3:#9b7a5b;
   --tile-edge:#7b5b45;
@@ -22,7 +24,7 @@ html,body{
     radial-gradient(1600px 1100px at 50% 50%, var(--parchment-1) 0%, var(--parchment-2) 58%, var(--parchment-3) 120%);
   font-family: "Trebuchet MS", system-ui, -apple-system, Segoe UI, Roboto, Arial; color:#efe6d8;
 }
-#board{ position:absolute; width:1920px; height:1080px; touch-action:none; left:50%; top:50%; transform: translate(-50%, -50%) scale(var(--board-scale)); transform-origin: 0 0; }
+#board{ position:relative; width:1920px; height:1080px; touch-action:none;   transform: scale(var(--board-scale)); transform-origin: center center; }
 
 /* tags & turn popup */
 .tag{ position:absolute; top:10px; padding:6px 10px; border-radius:10px;
@@ -650,6 +652,8 @@ html,body{
 
 /* === Size & spacing for stacked score boxes (no overlap) === */
 :root{
+  --tile-drop: 0 14px 16px rgba(0,0,0,.45);
+
   --board-scale: min(100vw / 1920, 100vh / 1080);
   --scoreStackLeft: calc(8px + 460px + 16px); /* left panel left + width + gap */
   --seriesBoxTop: 10px;
@@ -699,6 +703,8 @@ html,body{
 
 /* ===== Adjust score boxes: move down & center bottom under top ===== */
 :root{
+  --tile-drop: 0 14px 16px rgba(0,0,0,.45);
+
   --board-scale: min(100vw / 1920, 100vh / 1080);
   --seriesBoxTop: 20px;          /* was 10px -> move both boxes down a bit */
   --seriesBoxWidth: 200px;       /* explicit width for top box */
@@ -785,3 +791,57 @@ body.asP2 .token[data-owner="player1"]{
 
 /* Hide enemy tokens when they are invisible */
 .token.invisible-to-enemy{ opacity:0; pointer-events:none; }
+
+
+/* single background shadow behind the hex tiles */
+
+/* hex-shaped shadow behind the tile grid with tapered edges */
+
+
+
+
+#boardShadow{
+  position:absolute;
+  left:960px; top:540px;
+  transform: translate(-50%, calc(-50% - 50px)) scaleX(0.65);
+  /* sized dynamically by JS; these are fallbacks */
+  width:1400px; height:890px;
+  /* Flat-top hex (points on sides) */
+  clip-path: polygon(
+    10% 50%,  28% 12%,
+    72% 12%,  90% 50%,
+    72% 88%,  28% 88%
+  );
+  background: rgba(0,0,0,0.7);
+  /* Softer, longer feather to edges */
+  -webkit-mask-image: radial-gradient(closest-side,
+      #000 38%,
+      rgba(0,0,0,0.85) 58%,
+      rgba(0,0,0,0.35) 78%,
+      rgba(0,0,0,0.10) 90%,
+      transparent 100%);
+          mask-image: radial-gradient(closest-side,
+      #000 38%,
+      rgba(0,0,0,0.85) 58%,
+      rgba(0,0,0,0.35) 78%,
+      rgba(0,0,0,0.10) 90%,
+      transparent 100%);
+  filter: blur(18px);
+  pointer-events:none;
+  z-index:1;
+}
+
+
+
+    
+
+/* === Unified centering container (matches Home) === */
+#stage{
+  position:fixed;
+  inset:0;
+  display:grid;
+  place-items:center; /* centers #board horizontally & vertically */
+  pointer-events:none; /* container itself is inert */
+  z-index:0;
+}
+#stage > #board{ pointer-events:auto; } /* allow gameplay inside */

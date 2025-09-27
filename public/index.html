@@ -64,10 +64,12 @@
   </style>
 </head>
 <body><div id="seriesScoreTop" class="glass"><div class="label">Control Points</div><div class="score"><span id="seriesP1">0</span> — <span id="seriesP2">0</span></div></div>
-  <div id="board">
+  <div id="stage">
+    <div id="board">
     <a id="btnHome" href="/home">⟵ Home</a>
 
     <div class="center-dot"></div>
+    <div id="boardShadow" aria-hidden="true"></div>
 
     <div id="label1" class="tag" style="display:none"></div>
     <div id="label2" class="tag" style="display:none"></div>
@@ -111,6 +113,7 @@
         <p id="winsub">Winner: —</p>
       </div>
     </div>
+  </div>
   </div>
 
   <!-- Floating Play button (positioned by JS just above the selected card) -->

@@ -118,6 +118,8 @@ const CARD_COST = {
   Entangle: 2,
   IronSkin: 3,
   Sprint: 2,
+  
+  SideStep: 2,
   Wall: 1,
   Shatter: 1,
   Swap: 4,
@@ -1886,6 +1888,18 @@ ts.moveBuff.stepsBonusNext = (ts.moveBuff.stepsBonusNext||0) + 1;
       sendFullState(roomId);
       return;
     }
+
+    if (type === 'SideStep'){
+      if (ts.moved && ts.moved[sourceId]) return; // can't buff after unit moved
+      /* [ENERGY] pay cost for Side Step */
+      if (!requirePay('SideStep')) return;
+      ts.moveBuff.stepsBonusNext = (ts.moveBuff.stepsBonusNext||0) + 1;
+      st.lastDiscard[seat] = 'Side Step';
+      emitCardPlayed({ type:'SideStep', stepsBonus: ts.moveBuff.stepsBonusNext });
+      sendFullState(roomId);
+      return;
+    }
+
     if (type === 'Dash'){
       if (ts.moved && ts.moved[sourceId]) return;
       
