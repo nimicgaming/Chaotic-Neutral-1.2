@@ -762,3 +762,26 @@ html,body{
 #board #end-turn.ui-nozoom{
   transform-origin: left bottom;
 }
+
+
+/* === Ally/Enemy token colors (POV-based) ===
+   Your units are GREEN, enemy units are RED on your screen.
+   This is purely visual (client-side) and based on the body class set on role assignment. */
+
+body.asP1 .token[data-owner="player1"],
+body.asP2 .token[data-owner="player2"]{
+  background: #8fd49c;           /* gentle green */
+  color: #102410;
+  border-color: rgba(0,0,0,.65); /* keep same border weight */
+}
+
+body.asP1 .token[data-owner="player2"],
+body.asP2 .token[data-owner="player1"]{
+  background: #f2a1a1;           /* light red/pink */
+  color: #2b0909;
+  border-color: rgba(0,0,0,.65);
+}
+
+
+/* Hide enemy tokens when they are invisible */
+.token.invisible-to-enemy{ opacity:0; pointer-events:none; }

@@ -17,6 +17,17 @@
       cursor:pointer; pointer-events:auto;
     }
   
+.token.invisible-to-enemy {
+  opacity: 0;
+  pointer-events: none;
+}
+.token.invisible-own {
+  opacity: 0.35;
+}
+.charCard.invisible-own {
+  opacity: 0.65;
+}
+
 /* === Entangle overlay (vine) === */
 
 .token.entangled::after{
@@ -380,6 +391,7 @@ document.addEventListener('click', (e) => {
     }
 
     /* ---------- Local board/card state ---------- */
+    window.scopeBonusNext = 0;
     /* [ENERGY] Local energy snapshot + UI */
     let energyBySeat = { player1:0, player2:0 };
     function myEnergy(){ return energyBySeat[playerRole] || 0; }
@@ -571,8 +583,8 @@ const ABIL_OVERRIDES = {
 
     /* ---------- Tokens ---------- */
     /* ---------- Status FX (UI only) ---------- */
-    const STATUS_EMOJI = { fireDot:'🔥', ironSkin:'🛡️', entangle:'🌿', redirect:'🧿' , skillCheck:'🎲', bear:'🐻' };
-    const STATUS_DEFAULT_TURNS = { fireDot:3, ironSkin:2, entangle:2, redirect:2 , skillCheck:1 };
+    const STATUS_EMOJI = { fireDot:'🔥', ironSkin:'🛡️', entangle:'🌿', redirect:'🧿' , skillCheck:'🎲', bear:'🐻', invisible:'👻' };
+    const STATUS_DEFAULT_TURNS = { fireDot:3, ironSkin:2, entangle:2, redirect:2 , skillCheck:1 , invisible:2 };
     const statusFX = new Map(); // id -> { fireDot:n, ironSkin:n, entangle:n }
 
     
@@ -978,7 +990,7 @@ if (
       const displayName = (charState.get(sourceId)||{}).name;
       const meta = (typeof getMeta==='function' ? getMeta(role, displayName) : ABIL_DEFS[role]);
       const def = (kind === 'primary') ? meta.primary : meta.special;
-      const range = def.range ?? 1;
+      const range = (def.range ?? 1) + (window.scopeBonusNext||0);
       
       /* Auto‑self abilities (instant) */
       if (def && (def.autoSelf === true || (displayName === 'Loadstone' && kind === 'primary'))) {
@@ -1056,7 +1068,9 @@ const CARD_COST = {
   IronSkin: 3,
   Sprint: 2,
   Wall: 1,
-  Shatter: 1,};
+  Shatter: 1,
+  InvisibilityPotion: 2,
+  Scope: 2,};
 
     /* ---------- Discard UI helpers ---------- */
     const CARD_DESC = {
@@ -1219,9 +1233,11 @@ const CARD_COST = {
   { n:'Fireball', d:'Burn: 2 damage per turn for 3 turns' },
   { n:'Entangle', d:'Root the enemy for 2 turns' },
   { n:'Iron Skin', d:'Reduce damage taken by 2 for 2 turns' },
+  { n:'Invisibility Potion', d:'Become invisible for 2 turns' },
   { n:'Sprint', d:'Gain 1 move' },
   { n:'Wall',     d:'Place a wall (8 turns)' },
   { n:'Shatter',  d:'Remove a wall' },
+  { n:'Scope', d:'Add +1 range on next ability' },
 ];
     let deckIdx = 0;
 
@@ -1256,7 +1272,7 @@ const CARD_COST = {
       const _need = costOf(name);
       if (_need > 0 && myEnergy() < _need){ flashEnergyNotEnough(); return; }
 // Target-only cards: click Play then click a unit to apply the effect
-      if (name === 'Fireball' || name === 'Entangle' || name === 'Iron Skin' || name === 'Cleanse'){
+      if (name === 'Fireball' || name === 'Entangle' || name === 'Iron Skin' || name === 'Cleanse' || name === 'Invisibility Potion'){
         simpleTarget = { card: name };
         cardArmed = true;
         label1.textContent = 'Click a unit to apply ' + name;
@@ -1268,6 +1284,15 @@ const CARD_COST = {
         return;
       }
       // Siphon — instant cast (no target)
+      if (name === 'Scope'){
+        if (myEnergy() < (CARD_COST['Scope']||0)) { flashEnergyNotEnough(); return; }
+        moveToDiscard(selectedCard);
+        playedCardThisTurn = true;
+        socket.emit('revealCard', { type: name });
+        socket.emit('playCard', { type:'Scope' });
+        return;
+      }
+
       if (name === 'Siphon'){
         if (myEnergy() < (CARD_COST['Siphon']||0)) { flashEnergyNotEnough(); return; }
         moveToDiscard(selectedCard);
@@ -1352,7 +1377,7 @@ const CARD_COST = {
       }
     }
 
-    const CARD_IMG = { 'Iron Skin': 'Iron_Skin.png', 'Sprint': 'Sprint.png' };
+    const CARD_IMG = { 'Iron Skin': 'Iron_Skin.png', 'Sprint': 'Sprint.png', 'InvisibilityPotion': 'Invisibility_Potion.png', 'Scope':'Scope.png' };
 
 // Map for character-ability images in /assets/Character Ability Cards
 const ABILITY_CARD_IMG = {
@@ -1550,6 +1575,10 @@ if (GAME_ENDED) return; if (playerRole !== currentTurn) return; try { abilitySel
       } else if (name === 'Cleanse'){
         if (myEnergy() < (CARD_COST['Cleanse']||0)) { flashEnergyNotEnough(); return; }
         socket.emit('playCard', { type: 'Cleanse', targetId: tok.dataset.id });
+      } else if (name === 'Invisibility Potion'){
+        if (myEnergy() < (CARD_COST['InvisibilityPotion']||CARD_COST['Invisibility Potion']||0)) { flashEnergyNotEnough(); return; }
+        if (tok.dataset.owner !== playerRole) return; // ally only
+        socket.emit('playCard', { type: 'InvisibilityPotion', targetId: tok.dataset.id });
       } else {
         return;
       }
@@ -1589,9 +1618,18 @@ if (GAME_ENDED) return; if (playerRole !== currentTurn) return; try { abilitySel
     /* ---------- Sockets ---------- */
     socket.on('assignRole', role=>{
       playerRole = role;
-      fillStartHand();
+      
+      // mark POV for CSS (ally green / enemy red)
+      try{
+        document.body.classList.remove('asP1','asP2');
+        if (role === 'player1' || role === 'player2'){
+          document.body.classList.add(role === 'player1' ? 'asP1' : 'asP2');
+        }
+      }catch(_){}
+fillStartHand();
       placeEndButton();
       setBanner();
+      applyInvisibilityOverlays();
       refreshDraggables();
       if (window.__lastFullState) updateNameTags(window.__lastFullState);
     });
@@ -1643,6 +1681,7 @@ if (GAME_ENDED) return; if (playerRole !== currentTurn) return; try { abilitySel
       }catch(e){/*noop*/}
     }
 socket.on('fullState', full=>{ renderControlFromState(full);
+      try{ if (full && full.backgroundUrl){ document.documentElement.style.setProperty('background', `#111 url('${full.backgroundUrl}') center / cover no-repeat fixed`, 'important'); } }catch(_){/*noop*/}
       window.__lastFullState = full;
       updateNameTags(full);
       positionEnergyBox(true);
@@ -1701,6 +1740,7 @@ socket.on('fullState', full=>{ renderControlFromState(full);
     
       applyRootLocks(full.locks || {});
       applyStatusFX(full.fx || {});
+      try{ applyInvisibilityOverlays(); }catch(_){}
 
       // Play flashes after DOM exists
       if (toFlash.length){
@@ -1722,6 +1762,7 @@ socket.on('fullState', full=>{ renderControlFromState(full);
         turnState = Object.assign({ usedMovement:false, usedAction:false, cardPlayed:false }, full.turn);
       }
       setBanner();
+      applyInvisibilityOverlays();
       placeEndButton();
 
       // re-place play float if selection exists
@@ -1734,6 +1775,7 @@ socket.on('fullState', full=>{ renderControlFromState(full);
       turnState = { usedMovement:false, usedAction:false, cardPlayed:false };
       const wasMine = (playerRole !== who);
       currentTurn = who; setBanner();
+      applyInvisibilityOverlays();
 
       if (wasMine){ playedCardThisTurn = false; }
 
@@ -1830,12 +1872,39 @@ socket.on('fullState', full=>{ renderControlFromState(full);
 
     socket.on('abilityUsed', ({ kind, sourceId, targetId, name })=>{
   
+let who = 'player1';
 try {
   const token = document.querySelector(`.token[data-id="${sourceId}"]`);
-  const who = token ? token.dataset.owner : 'player1';
+  who = token ? (token.dataset.owner || 'player1') : 'player1';
   if (name) setDiscardByWho(who, name);
 } catch(e){}
-if (name === 'Voodoo Doll'){
+if (who === playerRole){
+  try{
+    // Reset local Scope preview bonus immediately after an ability resolves
+    window.scopeBonusNext = 0;
+    // If an ability is armed, recompute its highlight with the reset range
+    if (window.abilitySel){
+      const { kind, sourceId } = abilitySel;
+      const role = getRoleState(sourceId) || guessRoleFromId(sourceId);
+      const displayName = (charState.get(sourceId)||{}).name;
+      const meta = (typeof getMeta==='function' ? getMeta(role, displayName) : ABIL_DEFS[role]);
+      const def = (kind === 'primary') ? meta.primary : meta.special;
+      const tok = document.querySelector(`.token[data-id="${sourceId}"]`);
+      const start = tok && tok.dataset ? tok.dataset.tile : null;
+      let range = (def.range ?? 1);
+      const exact = (displayName === 'Aimbot' && kind === 'primary');
+      let area = areaWithin(start, range, localWalls);
+      if (exact && range>0){
+        const inner = new Set(areaWithin(start, range-1, localWalls));
+        area = area.filter(t=>!inner.has(t));
+      }
+      highlightSet(area, 'attack');
+      abilitySel.range = range;
+    }
+  }catch(_){/* no-op */}
+}
+
+  if (name === 'Voodoo Doll'){
     addOrUpdateStatusLocal(sourceId, 'redirect');
   }
 
@@ -1852,6 +1921,9 @@ if (name === 'Voodoo Doll'){
 socket.on('cardRevealed', ({ who, type })=>{ setDiscardByWho(who, type); });
 
     socket.on('cardPlayed', ({ type, tile, who, owner, stepsBonus, minSteps, targetId })=>{
+      // local energy adjust for instant-cast cards
+      if (who === playerRole && CARD_COST[type]){ const now=(energyBySeat[playerRole]||0) - (CARD_COST[type]||0); energyBySeat[playerRole]=Math.max(0, now); updateEnergyBar(energyBySeat[playerRole]); }
+      if (type === 'Scope' && who === playerRole){ window.scopeBonusNext = (window.scopeBonusNext||0) + 1; }
       if (who === playerRole){
         if (type === 'Sprint') moveBuff.stepsBonus = stepsBonus ?? (moveBuff.stepsBonus||0)+1; moveBuffOnce = true;
         if (type === 'Dash')     moveBuff.stepsBonus = stepsBonus ?? (moveBuff.stepsBonus||0)+2;
@@ -1871,6 +1943,7 @@ socket.on('cardRevealed', ({ who, type })=>{ setDiscardByWho(who, type); });
         if (type === 'Fireball')  addOrUpdateStatusLocal(targetId, 'fireDot', 3);
         if (type === 'IronSkin')  addOrUpdateStatusLocal(targetId, 'ironSkin', 2);
         if (type === 'Entangle')  addOrUpdateStatusLocal(targetId, 'entangle', 2);
+        if (type === 'InvisibilityPotion') { addOrUpdateStatusLocal(targetId, 'invisible', 2); try{ applyInvisibilityOverlays(); }catch(e){} }
       }
 
     });
@@ -1903,6 +1976,41 @@ socket.on('cardRevealed', ({ who, type })=>{ setDiscardByWho(who, type); });
       playFloat.style.display = 'none';
     });
   </script>
+<script>
+/* === Invisibility overlay toggler (enemy POV only) === */
+function applyInvisibilityOverlays(){
+  try{
+    if (playerRole !== 'player1' && playerRole !== 'player2') return;
+
+    document.querySelectorAll('.token').forEach(el=>{
+      const id = String(el.dataset.id||'');
+      const owner = String(el.dataset.owner||'');
+      const fx = (statusFX && statusFX.get && statusFX.get(id)) || {};
+      const inv = fx.invisible;
+      const isInvisible = !!( (typeof inv === 'number' && inv > 0) || (inv && typeof inv === 'object' && (inv.remaining||0) > 0) );
+      const hideEnemy = isInvisible && owner !== playerRole;
+      const ownGhost  = isInvisible && owner === playerRole;
+      el.classList.toggle('invisible-to-enemy', hideEnemy);
+      el.classList.toggle('invisible-own', ownGhost);
+    });
+
+    // Dim your own side panel card while invisible
+    try{
+      document.querySelectorAll('.charCard').forEach(card=>{
+        const id = String(card.dataset.id||'');
+        const st = (charState && charState.get) ? charState.get(id) : null;
+        const own = !!(st && st.owner === playerRole);
+        const fx = (statusFX && statusFX.get && statusFX.get(id)) || {};
+        const inv = fx.invisible;
+        const isInvisible = !!( (typeof inv === 'number' && inv > 0) || (inv && typeof inv === 'object' && (inv.remaining||0) > 0) );
+        const dim = !!(own && isInvisible);
+        card.classList.toggle('invisible-own', dim);
+      });
+    }catch(_){}    
+
+  }catch(e){ /* no-op */ }
+}
+</script>
 <script>
 /* === Entangle overlay toggler === */
 function updateEntangleOverlays(charsState){

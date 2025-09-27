@@ -7,6 +7,7 @@ const { Server } = require('socket.io');
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
+const __consumeScopeOnce = ()=>{}; // global no-op; real one defined inside useSpecial
 
 /* Load hero stats (hpMax) from characters.json for future-proof max HP */
 const fs = require('fs');
@@ -125,7 +126,14 @@ const CARD_COST = {
   PolarAttraction: 4,
   HealingPetal: 4,
   Transform: 5,
-  Replenish: 5,};
+  Replenish: 5,
+  InvisibilityPotion: 2,
+  Scope: 2,};
+const BACKGROUND_POOL = [
+  '/assets/background_paper.png',
+  '/assets/background_meadow.png'
+];
+
 const ENERGY_MAX = 10;
 const ENERGY_GAIN_PER_TURN = 1;
 
@@ -255,7 +263,17 @@ function createRoomState(roomId) {
   addTok('E3','player2','A3','DPS2','DPS2');
   addTok('E4','player2','A4','Support','Support');
 
-  rooms.set(roomId, state);
+  
+  // Pick a random background for this match
+  try{
+    if (Array.isArray(BACKGROUND_POOL) && BACKGROUND_POOL.length){
+      const pick = Math.floor(Math.random()*BACKGROUND_POOL.length);
+      state.backgroundUrl = BACKGROUND_POOL[pick];
+    } else {
+      state.backgroundUrl = '/assets/background_paper.png';
+    }
+  }catch(_){ state.backgroundUrl = '/assets/background_paper.png'; }
+rooms.set(roomId, state);
   function initControlPoints(st){
     try{
       const ids = Object.keys(st.tilePositions||{});
@@ -580,6 +598,7 @@ function exportFx(state){
   state.chars.forEach((c, id)=>{
     if (!c || !c.fx) return;
     const row = {};
+    if (c.fx.invisible && c.fx.invisible.remaining > 0) row.invisible = c.fx.invisible.remaining;
     if (c.fx.fireDot && c.fx.fireDot.remaining > 0) row.fireDot = c.fx.fireDot.remaining;
     if (c.fx.ironSkin && c.fx.ironSkin.remaining > 0) row.ironSkin = c.fx.ironSkin.remaining;
     if (c.fx.entangle && c.fx.entangle.remaining > 0) row.entangle = c.fx.entangle.remaining;
@@ -664,6 +683,12 @@ function resetPerTurn(st, role){ st.turnState[role] = initialTurnState(); }
         if (fx.ironSkin && fx.ironSkin.remaining > 0){
           fx.ironSkin.remaining -= 1;
           if (fx.ironSkin.remaining <= 0) delete fx.ironSkin;
+        }
+
+        // Invisibility tick
+        if (fx.invisible && fx.invisible.remaining > 0){
+          fx.invisible.remaining -= 1;
+          if (fx.invisible.remaining <= 0) delete fx.invisible;
         }
 
 if (fx.bear && fx.bear.remaining > 0){
@@ -942,7 +967,9 @@ function checkGameOver(st){
 
 function sendFullState(roomId, toSocket=null){
   const st = rooms.get(roomId); if (!st) return;
-  const payload = { mode: st.mode || 'standard', control: st.control ? { anchor: st.control.anchor, tiles:[...(st.control.tiles||[])], scores:{...(st.control.scores||{player1:0,player2:0})}, tally:{...(st.control.tally||{player1:0,player2:0})}, progress:{...(st.control.progress||{player1:0,player2:0})}, round:(typeof st.control.round==='number'?st.control.round:1) } : null, 
+  const payload = {
+    backgroundUrl: st.backgroundUrl,
+ mode: st.mode || 'standard', control: st.control ? { anchor: st.control.anchor, tiles:[...(st.control.tiles||[])], scores:{...(st.control.scores||{player1:0,player2:0})}, tally:{...(st.control.tally||{player1:0,player2:0})}, progress:{...(st.control.progress||{player1:0,player2:0})}, round:(typeof st.control.round==='number'?st.control.round:1) } : null, 
     blocked: exportWalls(st),
     blossomBlocked: exportBlossomWalls(st),
     blossomPinkBlocked: exportBlossomPinkWalls(st),
@@ -1235,7 +1262,7 @@ sendFullState(st.roomId);
         for (const [id, t] of st.tokens.entries()){
           if (!t || t.owner === seat) continue;
           const dist = shortestDistance(st, tok.tile, t.tile, walls);
-          if (dist !== Infinity && dist <= (defAoe.range || 1)) {
+          if (dist !== Infinity && dist <= ((defAoe.range || 1) + (st.turnState[seat]?.scopeBonusNext||0))) {
             const atkB = (st.chars.get(sourceId)?.fx?.attackBonusThisTurn)||0;
             applyDamage(st, id, (defAoe.dmg || 0) + atkB);
             hits.push(id);
@@ -1264,7 +1291,9 @@ sendFullState(st.roomId);
     const d = shortestDistance(st, srcTile, tgtTile, wallsSet(st));
     const exact = (src.name === 'Aimbot');
     if (d === Infinity) return;
-    if (exact ? (d !== (def.range ?? 1)) : (d > (def.range ?? 1))) return;
+    const __scopeB = (st.turnState[seat]?.scopeBonusNext||0);
+    const __eff = (def.range ?? 1) + __scopeB;
+    if (exact ? (d !== __eff) : (d > __eff)) return;
 
     const ts = st.turnState[seat]; if (!ts.acted) ts.acted = {};
     let lastPrimaryDmg = null;
@@ -1314,6 +1343,7 @@ if (def.type === 'damage') {
     if (def.type === 'heal')   applyHeal(st, targetId, def.heal || 0);
 
     ts.acted = ts.acted || {}; ts.acted[sourceId] = true;
+    try{ if ((st.turnState[seat]?.scopeBonusNext||0)>0) st.turnState[seat].scopeBonusNext = 0; }catch(_){}
     io.to(st.roomId).emit('abilityUsed', { kind:'primary', sourceId, targetId, name:def.name });
     let __type = def.name;
     try{ const _src = st.chars.get(sourceId); if (_src && _src.name === 'Little Bear' && _src.fx && _src.fx.bear && _src.fx.bear.remaining>0){ __type = 'Bear Claw'; } }catch(e){}
@@ -1348,6 +1378,8 @@ socket.on('useSpecial', ({ sourceId, targetId })=>{
     // Validate source/target
     const src = st.chars.get(sourceId); const tgt = st.chars.get(targetId);
     if (!src || !tgt) return;
+
+    let __scopeConsumed=false; function __consumeScopeOnce(){ if(!__scopeConsumed){ const ts=st.turnState[seat]||(st.turnState[seat]={}); if((ts.scopeBonusNext||0)>0){ ts.scopeBonusNext=0; } __scopeConsumed=true; } }
     if (st.tokens.get(sourceId)?.owner !== seat) return;
     // Per-character action guard (specials share the same 1/turn gate as primaries)
     { const ts = st.turnState[seat] || (st.turnState[seat] = {}); if (ts.acted && ts.acted[sourceId]) return; }
@@ -1376,6 +1408,7 @@ if (spec && spec.type === 'selfHeal') {
   io.to(st.roomId).emit('abilityUsed', { kind:'special', sourceId, targetId: sourceId, name: spec.name || 'Replenish', extra:{ healed:[sourceId], amount: amt } });
   st.lastDiscard[seat] = spec.name || 'Replenish';
   io.to(st.roomId).emit('cardPlayed', { type: spec.name || 'Replenish', who: seat });
+  __consumeScopeOnce();
   maybeEndTurn(st, seat);
   return;
 }
@@ -1387,7 +1420,7 @@ if (spec && spec.type === 'selfHeal') {
       if (!srcTok || !tgtTok) return;
       if (tgtTok.owner !== seat) return; // ally-only
       const d = shortestDistance(st, srcTok.tile, tgtTok.tile, wallsSet(st));
-      if (d === Infinity || d > (spec.range || 2)) return;
+      if (d === Infinity || d > ((spec.range || 2) + (st.turnState[seat]?.scopeBonusNext||0))) return;
       if (!requirePay('SkillCheck')) return;
       const tfx = getFx(st, targetId);
       tfx.skillCheckNext = { move: 1, attack: 1, remaining: 1 };
@@ -1397,7 +1430,8 @@ if (spec && spec.type === 'selfHeal') {
       io.to(st.roomId).emit('abilityUsed', { kind:'special', sourceId, targetId, name: spec.name || 'Skill Check', extra:{ attack:+1, move:+1 } });
       st.lastDiscard[seat] = spec.name || 'Skill Check';
       io.to(st.roomId).emit('cardPlayed', { type: spec.name || 'Skill Check', who: seat });
-      maybeEndTurn(st, seat);
+      __consumeScopeOnce();
+  maybeEndTurn(st, seat);
       return;
     }
 
@@ -1441,7 +1475,7 @@ if (spec && spec.type === 'polar') {
     st.tokens.forEach((tok, id)=>{
       if (!tok || tok.owner === seat) return;
       const d = shortestDistance(st, srcTok.tile, tok.tile, walls);
-      if (d !== Infinity && d <= (spec.range || 2)) candidates.push(id);
+      if (d !== Infinity && d <= ((spec.range || 2) + (st.turnState[seat]?.scopeBonusNext||0))) candidates.push(id);
     });
     
 // Directional, order-preserving placement using rotational alignment
@@ -1496,7 +1530,8 @@ const ts = st.turnState[seat] || (st.turnState[seat] = {});
     io.to(st.roomId).emit('abilityUsed', { kind:'special', sourceId, targetId: sourceId, name: spec.name || 'Polar Attraction' });
     st.lastDiscard[seat] = spec.name || 'Polar Attraction' ;
     io.to(st.roomId).emit('cardPlayed', { type: spec.name || 'Polar Attraction' , who: seat });
-    maybeEndTurn(st, seat);
+    __consumeScopeOnce();
+  maybeEndTurn(st, seat);
     return;
   }
 }
@@ -1515,7 +1550,8 @@ const ts = st.turnState[seat] || (st.turnState[seat] = {});
       st.lastDiscard[seat] = spec.name || 'Transform';
       io.to(st.roomId).emit('cardPlayed', { type: spec.name || 'Transform', who: seat });
       sendFullState(st.roomId);
-      maybeEndTurn(st, seat);
+      __consumeScopeOnce();
+  maybeEndTurn(st, seat);
       return;
     }
 if (spec.type === 'redirect'){
@@ -1528,7 +1564,8 @@ if (spec.type === 'redirect'){
       io.to(st.roomId).emit('abilityUsed', { kind:'special', sourceId, targetId: sourceId, name: 'Voodoo Doll' });
       st.lastDiscard[seat] = 'Voodoo Doll' ;
     io.to(st.roomId).emit('cardPlayed', { type: 'Voodoo Doll' , who: seat });
-    maybeEndTurn(st, seat);
+    __consumeScopeOnce();
+  maybeEndTurn(st, seat);
       return;
     }
 
@@ -1538,7 +1575,7 @@ if (spec.type === 'redirect'){
       if (!srcTok || !tgtTok) return;
       // Range check ignoring walls (use BFS distance)
       const d = shortestDistance(st, srcTok.tile, tgtTok.tile, null);
-      if (d === Infinity || d > (spec.range||4)) return;
+      if (d === Infinity || d > ((spec.range||4) + (st.turnState[seat]?.scopeBonusNext||0))) return;
       if (!requirePay('FMJ')) return;
       const tiles = tilesOnSegment(srcTok.tile, tgtTok.tile);
       const myTeam = seat;
@@ -1558,7 +1595,8 @@ if (spec.type === 'redirect'){
       io.to(st.roomId).emit('abilityUsed', { kind:'special', sourceId, targetId, name:'FMJ', tiles, hits });
       st.lastDiscard[seat] = 'FMJ';
     io.to(st.roomId).emit('cardPlayed', { type: 'FMJ', who: seat });
-    maybeEndTurn(st, seat);
+    __consumeScopeOnce();
+  maybeEndTurn(st, seat);
       return;
     }
 
@@ -1585,7 +1623,8 @@ if (spec.type === 'redirect'){
       io.to(st.roomId).emit('abilityUsed', { kind:'special', sourceId, name: spec.name || 'Healing Blossom', extra:{ centerTile, tiles } });
       st.lastDiscard[seat] = spec.name || 'Healing Blossom';
     io.to(st.roomId).emit('cardPlayed', { type: spec.name || 'Healing Blossom', who: seat });
-    maybeEndTurn(st, seat);
+    __consumeScopeOnce();
+  maybeEndTurn(st, seat);
       return;
     }
     // Healing Petal (legacy) (Death Blossom): heal allies within radius around target tile
@@ -1594,7 +1633,7 @@ if (spec.type === 'redirect'){
       const srcTok = st.tokens.get(sourceId); const tgtTok = st.tokens.get(targetId);
       if (!srcTok || !tgtTok) return;
       const d = shortestDistance(st, srcTok.tile, tgtTok.tile, null);
-      if (d === Infinity || d > (spec.range || 99)) return;
+      if (d === Infinity || d > ((spec.range || 99) + (st.turnState[seat]?.scopeBonusNext||0))) return;
 
       const radius = spec.radius || 1;
       const center = tgtTok.tile;
@@ -1623,7 +1662,8 @@ if (spec.type === 'redirect'){
       io.to(st.roomId).emit('abilityUsed', { kind:'special', sourceId, targetId, name: spec.name || 'Healing Blossom', extra:{healed} });
       st.lastDiscard[seat] = spec.name || 'Healing Blossom';
     io.to(st.roomId).emit('cardPlayed', { type: spec.name || 'Healing Blossom', who: seat });
-    maybeEndTurn(st, seat);
+    __consumeScopeOnce();
+  maybeEndTurn(st, seat);
       return;
     }
 if (spec.type === 'swap'){
@@ -1644,7 +1684,8 @@ io.to(st.roomId).emit('move', { id: sourceId, owner: seat, toTile: tokA.tile, ca
       io.to(st.roomId).emit('abilityUsed', { kind:'special', sourceId, targetId, name: 'Swap' });
       st.lastDiscard[seat] = 'Swap';
       io.to(st.roomId).emit('cardPlayed', { type: 'Swap', who: seat });
-      maybeEndTurn(st, seat);
+      __consumeScopeOnce();
+  maybeEndTurn(st, seat);
       return;
     }
   });
@@ -1736,7 +1777,8 @@ if (!targetId) return;
         if (!requirePay('Fireball')) return;
 const fx = getFx(st, targetId); fx.fireDot = { remaining:3, per:2 };
         io.to(st.roomId).emit('cardPlayed', { type, targetId });
-        maybeEndTurn(st, seat);
+        __consumeScopeOnce();
+  maybeEndTurn(st, seat);
         return;
       }
 
@@ -1750,7 +1792,8 @@ if (!targetId) return;
         if (!requirePay('Entangle')) return;
 const fx = getFx(st, targetId); fx.entangle = { remaining: 3 };
         io.to(st.roomId).emit('cardPlayed', { type, targetId });
-        maybeEndTurn(st, seat);
+        __consumeScopeOnce();
+  maybeEndTurn(st, seat);
         return;
       }
 
@@ -1764,7 +1807,8 @@ if (!targetId) return;
         // Wipe all status effects on the target (ally or enemy)
         ch.fx = {};
         io.to(st.roomId).emit('cardPlayed', { type, targetId });
-        maybeEndTurn(st, seat);
+        __consumeScopeOnce();
+  maybeEndTurn(st, seat);
         return;
       }
       if (type === 'IronSkin'){
@@ -1776,9 +1820,23 @@ if (!targetId) return;
         if (!requirePay('IronSkin')) return;
 const fx = getFx(st, targetId); fx.ironSkin = { remaining:2, reduce:2 };
         io.to(st.roomId).emit('cardPlayed', { type, targetId });
-        maybeEndTurn(st, seat);
+        __consumeScopeOnce();
+  maybeEndTurn(st, seat);
         return;
       }
+      if (type === 'InvisibilityPotion'){
+        if (!targetId) return;
+        const ally2 = st.chars.get(targetId); if (!ally2) return;
+        if (ally2.owner !== seat) return; // must be ally
+        /* [ENERGY] pay cost for InvisibilityPotion */
+        if (!requirePay('InvisibilityPotion')) return;
+        const fx2 = getFx(st, targetId); fx2.invisible = { remaining: 2 };
+        io.to(st.roomId).emit('cardPlayed', { type, targetId });
+        __consumeScopeOnce();
+  maybeEndTurn(st, seat);
+        return;
+      }
+
          // only one card per turn
 
     function emitCardPlayed(extra={}){
@@ -1789,7 +1847,19 @@ const fx = getFx(st, targetId); fx.ironSkin = { remaining:2, reduce:2 };
     // Movement-buff cards: consume card, don't immediately flip usedMovement
     
       // Energy Siphon — Instant: pay 3, gain 2 energy; opponent loses 3
-      if (type === 'Siphon'){
+      if (type === 'Scope') {
+      if (!canPay(st, seat, 'Scope')){ io.to(socket.id).emit('insufficientEnergy', { card:'Scope' }); return; }
+      pay(st, seat, 'Scope');
+      const ts = st.turnState[seat] || (st.turnState[seat] = {});
+      ts.scopeBonusNext = (ts.scopeBonusNext||0) + 1;
+      st.lastDiscard[seat] = 'Scope';
+      io.to(st.roomId).emit('cardPlayed', { type:'Scope', who: seat });
+      __consumeScopeOnce();
+  maybeEndTurn(st, seat);
+      return;
+    }
+
+    if (type === 'Siphon'){
         // obey one-card-per-turn rule
         
         /* [ENERGY] pay cost for Energy Siphon */
@@ -1844,7 +1914,8 @@ ts.moveBuff.minSteps = Math.max(ts.moveBuff.minSteps||0, 2);
 /* [ENERGY] pay cost for Scout */
         if (!requirePay('Scout')) return;
 emitCardPlayed();
-      maybeEndTurn(st, seat);
+      __consumeScopeOnce();
+  maybeEndTurn(st, seat);
       return;
     }
 
@@ -1858,6 +1929,7 @@ if (!tile) return;
   emitCardPlayed({ tile });
   // BEFORE: sendFullState(roomId);
   // AFTER:
+  __consumeScopeOnce();
   maybeEndTurn(st, seat);
   return;
 }
@@ -1877,6 +1949,7 @@ if (type === 'BlossomWall') {
     ts.acted = ts.acted || {}; ts.acted[sourceId] = true;
   }
   emitCardPlayed({ type:'BlossomWall', tile, owner: seat });
+  __consumeScopeOnce();
   maybeEndTurn(st, seat);
   return;
 }
@@ -1890,6 +1963,7 @@ if (!tile) return;
   emitCardPlayed({ tile });
   // BEFORE: sendFullState(roomId);
   // AFTER:
+  __consumeScopeOnce();
   maybeEndTurn(st, seat);
   return;
 }
@@ -1918,7 +1992,8 @@ const tok = st.tokens.get(sourceId);
 
       emitCardPlayed({ sourceId, toTile });
       io.to(st.roomId).emit('move', { id: sourceId, owner: seat, toTile, capturedId: null });
-      maybeEndTurn(st, seat);
+      __consumeScopeOnce();
+  maybeEndTurn(st, seat);
       return;
     }
   });
@@ -2085,35 +2160,7 @@ function scoreControlRound(st){
   const tset = new Set(st.control.tiles || []);
   const anc  = st.control.anchor || null;
   for (const [id, tok] of st.tokens){
-    if (!tok || !tok.tile) continue;
-    if (anc && tok.tile === anc){
-      if (tok.owner==='player1') p1 += 2;
-      else if (tok.owner==='player2') p2 += 2;
-    } else if (tset.has(tok.tile)){
-      if (tok.owner==='player1') p1 += 1;
-      else if (tok.owner==='player2') p2 += 1;
-    }
-  }
-  st.control.progress.player1 += p1;
-  st.control.progress.player2 += p2;
-
-  // Round completion
-  let roundWinner = null;
-  if (st.control.progress.player1 >= 10) roundWinner = 'player1';
-  if (st.control.progress.player2 >= 10) roundWinner = 'player2';
-
-  if (roundWinner){
-    st.control.scores[roundWinner] += 1;
-    st.control.tally.player1 += p1;
-      st.control.tally.player2 += p2;
-      st.control.round += 1;
-
-    // Reset progress for next round
-    st.control.progress = { player1:0, player2:0 };
-
-    // Mirror for the next round
-    __cn_mirrorControl(st);
-    __cn_mirrorRespawnPoints(st);
+   irrorRespawnPoints(st);
 
     // Notify
     try{ io.to(st.roomId).emit('roundWon', { winner: roundWinner, scores: { ...st.control.scores }, round: st.control.round }); }catch(_){}
