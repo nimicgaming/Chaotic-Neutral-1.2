@@ -130,7 +130,9 @@ const CARD_COST = {
   Transform: 5,
   Replenish: 5,
   InvisibilityPotion: 2,
-  Scope: 2,};
+  Scope: 2,
+  BearTrap: 2,
+};
 const BACKGROUND_POOL = [
   '/assets/background_paper.png',
   '/assets/background_meadow.png'
@@ -167,7 +169,7 @@ function pay(st, seat, type){
   return true;
 }
 function initialTurnState() {
-  return { cardPlayed:false, usedMovement:false, usedAction:false, moveBuff:{ stepsBonus:0, minSteps:0 }, moved:{}, acted:{} };
+  return { cardPlayed:false, usedMovement:false, usedAction:false, moveBuff:{ stepsBonus:0, minSteps:0, extraMoveOnce:0 }, moved:{}, acted:{} };
 }
 
 function createRoomState(roomId) {
@@ -202,8 +204,12 @@ function createRoomState(roomId) {
     blossomWalls: new Map(), // Blossom walls (passable)
     blossomPinkWalls: new Map(), // Blossom ring (pink, passable)
     BLOSSOM_WALL_TTL: 2,
+    traps: new Map(), // tile -> { owner }
 
-    // class defs
+
+    
+    trapTimers: new Map(), // tile -> expireTick
+    turnTick: 0,// class defs
     CHAR_DEFS: {
       Tank:    { maxHP: 18, primary:{ name:'Shield Bash',  type:'damage', dmg:3, range:1 }, special:{ name:'Hammer Slam', type:'damage', dmg:5, range:1, cd:3 } },
       DPS1:    { maxHP: 8 , primary:{ name:'Fire Bolt',    type:'damage', dmg:3, range:2 }, special:{ name:'Dragon’s Fury', type:'damage', dmg:4, range:2, cd:4 } },
@@ -604,6 +610,7 @@ function exportFx(state){
     if (c.fx.fireDot && c.fx.fireDot.remaining > 0) row.fireDot = c.fx.fireDot.remaining;
     if (c.fx.ironSkin && c.fx.ironSkin.remaining > 0) row.ironSkin = c.fx.ironSkin.remaining;
     if (c.fx.entangle && c.fx.entangle.remaining > 0) row.entangle = c.fx.entangle.remaining;
+        if (c.fx.trapped && c.fx.trapped.remaining > 0) row.trapped = c.fx.trapped.remaining;
     if (c.fx.redirect && c.fx.redirect.remaining > 0) row.redirect = c.fx.redirect.remaining;
     if (c.fx.bear && c.fx.bear.remaining > 0) row.bear = c.fx.bear.remaining;
     
@@ -682,7 +689,11 @@ function resetPerTurn(st, role){ st.turnState[role] = initialTurnState(); }
           fx.entangle.remaining -= 1;
           if (fx.entangle.remaining <= 0) delete fx.entangle;
         }
-        if (fx.ironSkin && fx.ironSkin.remaining > 0){
+                if (fx.trapped && fx.trapped.remaining > 0){
+          fx.trapped.remaining -= 1;
+          if (fx.trapped.remaining <= 0) delete fx.trapped;
+        }
+if (fx.ironSkin && fx.ironSkin.remaining > 0){
           fx.ironSkin.remaining -= 1;
           if (fx.ironSkin.remaining <= 0) delete fx.ironSkin;
         }
@@ -811,7 +822,18 @@ tickWalls(st);
   // Promote beginning-of-turn buffs
   processStartOfTurn(st, next);
 
-  resetPerTurn(st, prev);
+  
+  // === Trap TTL handling: tick and clear expired ===
+  try{
+    st.turnTick = (st.turnTick|0) + 1;
+    const toClear = [];
+    if (st.trapTimers && st.trapTimers.forEach){
+      st.trapTimers.forEach((exp, tid)=>{ if ((st.turnTick|0) >= (exp|0)) toClear.push(tid); });
+    }
+    for (const tid of toClear){ try{ clearTrap(st, tid); }catch(_){ } try{ st.trapTimers.delete(tid); }catch(_){ } }
+    if (toClear.length){ try{ io.to(st.roomId).emit('trapCleared', { tiles: toClear }); }catch(_){ } }
+  }catch(_){}
+resetPerTurn(st, prev);
   io.to(st.roomId).emit('nextTurn', st.currentTurn);
   sendFullState(st.roomId);
 }
@@ -975,6 +997,7 @@ function sendFullState(roomId, toSocket=null){
     blocked: exportWalls(st),
     blossomBlocked: exportBlossomWalls(st),
     blossomPinkBlocked: exportBlossomPinkWalls(st),
+    traps: exportTraps(st),
     tokens: exportTokens(st),
     chars:  exportChars(st),
     currentTurn: st.currentTurn,
@@ -993,6 +1016,51 @@ function sendFullState(roomId, toSocket=null){
   else io.to(roomId).emit('fullState', payload);
 }
 
+
+// === Bear Trap helpers ===
+function placeTrap(state, tile, owner){
+  if (!state.tilePositions[tile]) return false;
+  if (state.walls.has(tile)) return false;
+  if (state.traps.has(tile)) return false;
+  if (occMap(state).has(tile)) return false;
+  state.traps.set(tile, { owner });
+  return true;
+}
+function clearTrap(state, tile){
+  if (!state.traps.has(tile)) return false;
+  state.traps.delete(tile); return true;
+}
+function exportTraps(state){
+  const out = [];
+  (state.traps && state.traps.forEach ? state.traps : new Map()).forEach((v, tid)=> out.push({ tile: tid, owner: (v && v.owner) || null, triggered: !!(v && v.triggered) }));
+  return out;
+}
+// --- Bear Trap trigger on entering tile ---
+const TRAP_DMG = 2;
+const TRAP_ROOT_TURNS = 2;
+function triggerTrapOnEnter(st, seat, targetId, tile){
+  if (!st || !tile) return false;
+  const entry = st.traps && st.traps.get ? st.traps.get(tile) : null;
+  if (!entry) return false;
+  // Only trigger if stepping onto an enemy trap and it hasn't already fired
+  if (entry.owner === seat) return false;
+  if (entry.triggered) return false;
+
+  // Mark as triggered but DO NOT remove the trap (keeps image visible via fullState)
+  try {
+    entry.triggered = true;
+    st.traps.set(tile, entry);
+  } catch(e) {}
+
+  
+  // Start server-side expiry: 4 turns from now
+  try { if (!st.trapTimers) st.trapTimers = new Map(); st.trapTimers.set(tile, ((st.turnTick|0) + 4)); } catch(_){}
+// Apply effects and notify clients
+  const fx = getFx(st, targetId); if (fx) fx.trapped = { remaining: TRAP_ROOT_TURNS };
+  io.to(st.roomId).emit('trapTriggered', { tile, targetId, rootTurns: TRAP_ROOT_TURNS });
+  applyDamage(st, targetId, TRAP_DMG);
+  return true;
+}
 /* =========================================================
    SOCKET.IO
    ========================================================= */
@@ -1206,11 +1274,8 @@ sendFullState(st.roomId);
     if (!st.tilePositions[toTile]) return;
     // Entangle: rooted units cannot move
     const ch = st.chars.get(id);
-    if (ch && ch.fx && ch.fx.entangle && ch.fx.entangle.remaining > 0){
+    if (ch && ch.fx && ((ch.fx.entangle && ch.fx.entangle.remaining > 0) || (ch.fx.trapped && ch.fx.trapped.remaining > 0))){
       io.to(socket.id).emit('invalidMove', { id, reason: 'rooted' });
-      return;
-    
-      io.to(socket.id).emit('invalidMove', { id });
       return;
     }
 
@@ -1220,7 +1285,9 @@ sendFullState(st.roomId);
     if (occ.has(toTile)) { io.to(socket.id).emit('invalidMove', { id }); return; }
 
     const ts = st.turnState[mySeat];
-    if (ts.moved && ts.moved[id]) { io.to(socket.id).emit('invalidMove', { id }); return; }
+    const movedOnce = !!(ts.moved && ts.moved[id]);
+    const canUseExtra = !!(ts.moveBuff && ts.moveBuff.extraMoveOnce > 0);
+    if (movedOnce && !canUseExtra) { io.to(socket.id).emit('invalidMove', { id }); return; }
     const alreadyMoved = tok.hasMovedEver === true;
     const baseSteps = alreadyMoved ? 1 : 2;
     const charStepBonus = (ch && ch.fx && ch.fx.moveBonusThisTurn) ? ch.fx.moveBonusThisTurn : 0;
@@ -1235,10 +1302,20 @@ sendFullState(st.roomId);
 
     tok.tile = toTile;
     tok.hasMovedEver = true;
-    ts.moved = ts.moved || {}; ts.moved[id] = true;
+    ts.moved = ts.moved || {};
+    if (movedOnce && canUseExtra) {
+      // Consume the extra movement granted by Side Step
+      ts.moveBuff.extraMoveOnce = 0;
+      ts.moved[id] = true; // already true; keep it that way
+    } else {
+      ts.moved[id] = true;
+    }
     if (ts.moveBuff && ts.moveBuff.stepsBonusNext) ts.moveBuff.stepsBonusNext = 0;
 
     io.to(st.roomId).emit('move', { id, owner: mySeat, toTile, capturedId: null });
+    // If stepping on a Bear Trap, trigger it (enemy traps only)
+    try { triggerTrapOnEnter(st, mySeat, id, toTile); } catch(e) {}
+
     maybeEndTurn(st, mySeat);
   });
 
@@ -1387,17 +1464,8 @@ socket.on('useSpecial', ({ sourceId, targetId })=>{
     { const ts = st.turnState[seat] || (st.turnState[seat] = {}); if (ts.acted && ts.acted[sourceId]) return; }
 
 
-    // Move/transfer entangle when swapping later
-    try {
-      const sfx = getFx(st, sourceId);
-      const tfx = getFx(st, targetId);
-      if (sfx && sfx.entangle && sfx.entangle.remaining > 0){
-        tfx.entangle = { ...(tfx.entangle||{}), remaining: sfx.entangle.remaining };
-        delete sfx.entangle;
-      }
-    } catch(e){ /* ignore */ }
-
-    const def = getCharDef(st, src) || {};
+    // [Swap] entangle transfer handled inside the swap branch below.
+const def = getCharDef(st, src) || {};
     const spec = def.special || {};
 
 // Self-heal specials (e.g., Don Atore — Replenish)
@@ -1677,8 +1745,37 @@ const tokA = st.tokens.get(sourceId);
       if (!a || !b) return;
 
       tokA.tile = b; tokB.tile = a;
+      // Ensure entangle (root) status follows characters correctly:
+      // If either source or target is rooted, swap their entangle timers so the status travels with the unit.
+      try {
+        const sfx = getFx(st, sourceId);
+        const tfx = getFx(st, targetId);
+        const sEnt = (sfx && sfx.entangle && sfx.entangle.remaining > 0) ? (sfx.entangle.remaining|0) : 0;
+        const tEnt = (tfx && tfx.entangle && tfx.entangle.remaining > 0) ? (tfx.entangle.remaining|0) : 0;
+        if (sEnt || tEnt){
+          if (tEnt) sfx.entangle = { remaining: tEnt }; else if (sfx && sfx.entangle) delete sfx.entangle;
+          if (sEnt) tfx.entangle = { remaining: sEnt }; else if (tfx && tfx.entangle) delete tfx.entangle;
+        }
+      } catch(e) { /* no-op */ }
 
-      const ts = st.turnState[seat] || (st.turnState[seat] = {});
+
+      
+      // Ensure Bear Trap 'trapped' status follows characters correctly:
+      // If either source or target is trapped (bear trap root), swap their remaining timers so the status travels with the unit.
+      try {
+        const sfx2 = getFx(st, sourceId);
+        const tfx2 = getFx(st, targetId);
+        // Support both object form { remaining:N } and legacy numeric form N
+        const sTrap = (sfx2 && sfx2.trapped) ? ((typeof sfx2.trapped === 'number') ? (sfx2.trapped|0) : ((sfx2.trapped.remaining|0) || 0)) : 0;
+        const tTrap = (tfx2 && tfx2.trapped) ? ((typeof tfx2.trapped === 'number') ? (tfx2.trapped|0) : ((tfx2.trapped.remaining|0) || 0)) : 0;
+        if (sTrap || tTrap){
+          if (tTrap) sfx2.trapped = { remaining: tTrap }; else if (sfx2 && sfx2.trapped) delete sfx2.trapped;
+          if (sTrap) tfx2.trapped = { remaining: sTrap }; else if (tfx2 && tfx2.trapped) delete tfx2.trapped;
+        }
+      } catch(e) { /* no-op */ }
+      // Push an updated fx snapshot so clients immediately reflect trap transfer
+      try { sendFullState(st.roomId); } catch(_){}
+const ts = st.turnState[seat] || (st.turnState[seat] = {});
       if (!ts.acted) ts.acted = {};
       ts.acted = ts.acted || {}; ts.acted[sourceId] = true;ts.moved = ts.moved || {}; ts.moved[sourceId] = true; ts.moved[targetId] = true;
 io.to(st.roomId).emit('move', { id: sourceId, owner: seat, toTile: tokA.tile, capturedId: null });
@@ -1873,7 +1970,7 @@ const fx = getFx(st, targetId); fx.ironSkin = { remaining:2, reduce:2 };
         st.energy[seat] = Math.min(ENERGY_MAX, (st.energy[seat] || 0) + gain);
         st.energy[opp]  = Math.max(0, (st.energy[opp]  || 0) - steal);
         
-        emitCardPlayed({ gain, steal });
+        emitCardPlayed({ type:'SideStep', extraMove:true });
         sendFullState(roomId);
         return;
       }
@@ -1890,10 +1987,10 @@ ts.moveBuff.stepsBonusNext = (ts.moveBuff.stepsBonusNext||0) + 1;
     }
 
     if (type === 'SideStep'){
-      if (ts.moved && ts.moved[sourceId]) return; // can't buff after unit moved
+      // Play at any time during your turn; grants your team one extra movement action (consumed on use)
       /* [ENERGY] pay cost for Side Step */
       if (!requirePay('SideStep')) return;
-      ts.moveBuff.stepsBonusNext = (ts.moveBuff.stepsBonusNext||0) + 1;
+      ts.moveBuff.extraMoveOnce = (ts.moveBuff.extraMoveOnce||0) + 1;
       st.lastDiscard[seat] = 'Side Step';
       emitCardPlayed({ type:'SideStep', stepsBonus: ts.moveBuff.stepsBonusNext });
       sendFullState(roomId);
@@ -1947,6 +2044,17 @@ if (!tile) return;
   maybeEndTurn(st, seat);
   return;
 }
+
+if (type === 'BearTrap'){
+  if (!tile) return;
+  if (!requirePay('BearTrap')) return;
+  if (!placeTrap(st, tile, seat)) return;
+  emitCardPlayed({ type:'BearTrap', tile, owner: seat });
+  __consumeScopeOnce();
+  maybeEndTurn(st, seat);
+  return;
+}
+
 
 if (type === 'BlossomWall') {
   // Heal Blossom: place center + pink ring; costs energy; counts as action for the casting character
