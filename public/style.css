@@ -845,3 +845,62 @@ body.asP2 .token[data-owner="player1"]{
   z-index:0;
 }
 #stage > #board{ pointer-events:auto; } /* allow gameplay inside */
+
+/* ===== Bear Trap overlay ===== */
+#trapOverlayLayer {
+  position:absolute;
+  left:0; top:0; right:0; bottom:0;
+  pointer-events:none;
+  z-index: 3; /* above tiles, below ghosts and tokens */
+}
+.trap-overlay {
+  position:absolute;
+  width: 72px; height: 72px;
+  margin-left: -36px; margin-top: -36px;
+  background: url('/assets/Icons/BearTrap.png') center center / contain no-repeat;
+  image-rendering: auto;
+  pointer-events:none;
+}
+
+#trapCaughtLayer{ position:absolute; left:0; top:0; right:0; bottom:0; pointer-events:none; z-index:5; }
+
+.trap-overlay.caught{ background: url('/assets/Icons/BearTrapCaught.png') center/contain no-repeat; }
+
+/* === overlay visuals (decoupled) === */
+.overlay-vines{
+  position:absolute; inset:0;
+  width:100%; height:100%;
+  pointer-events:none; user-select:none;
+  z-index: 3;
+}
+.overlay-beartrap-caught{
+  position:absolute; inset:0;
+  width:100%; height:100%;
+  pointer-events:none; user-select:none;
+  z-index: 2;
+}
+
+
+
+/* FINAL override to ensure topmost layer */
+#trapCaughtLayer{ z-index: 9999 !important; }
+
+/* topmost override */
+#trapCaughtLayer{ z-index: 10000 !important; }
+
+img.bt-caught-img{ pointer-events:none; z-index: 10001; }
+
+
+
+/* === Entangle vines overlay on character cards === */
+.charCard .vinesOverlay{
+  position:absolute; left:0; top:0; right:0; bottom:0;
+  background-image: url('/assets/Icons/Vines.png');
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: var(--vines-stretch-x, 110%) 100%; /* stretch width only, keep height */
+  pointer-events:none;
+  opacity:0.9; /* stronger */
+  animation: vineSway 2.5s ease-in-out infinite;
+  z-index: 1; /* keep behind text/buttons */
+}

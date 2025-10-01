@@ -38,12 +38,64 @@
   opacity:0.95;
   animation: vineSway 2.5s ease-in-out infinite;
 }
+
+/* === Entangle vines overlay element (explicit element, not pseudo) === */
+.token .vinesOverlay{
+  position:absolute; left:-4px; top:-4px; right:-4px; bottom:-4px;
+  background: url('/assets/Icons/Vines.png') center/contain no-repeat;
+  pointer-events:none;
+  z-index: 8;
+  opacity: 0.98;
+  animation: vineSway 2.5s ease-in-out infinite;
+}
 @keyframes vineSway{
   0%{ transform: rotate(0deg) scale(1); }
+/* === Trapped (Bear Trap caught) overlay on token === */
+.token.trapped::after{
+  content:"";
+  position:absolute; left:-4px; top:-4px; right:-4px; bottom:-4px;
+  background: url('/assets/Icons/BearTrapCaught.png') center/contain no-repeat;
+  pointer-events:none;
+  opacity:0.98;
+}
+/* Explicit caught overlay element (mirrors vines overlay approach) */
+.token img.overlay-trapcaught{
+  position:absolute; left:-4px; top:-4px; right:-4px; bottom:-4px;
+  pointer-events:none;
+  z-index: 999; /* above token content */
+}
+
+
   50%{ transform: rotate(1deg) scale(1.02); }
   100%{ transform: rotate(0deg) scale(1); }
 }
 
+
+/* === Bear Trap overlay === */
+#trapOverlayLayer{
+  position:absolute; left:0; top:0; right:0; bottom:0;
+  pointer-events:none; z-index:3;
+}
+.trap-overlay{
+  position:absolute; width:104px; height:104px;
+  margin-left:-52px; margin-top:-52px;
+  background:center/contain no-repeat;
+  background-image:url('/assets/Icons/BearTrap.png');
+  pointer-events:none;
+}
+
+/* === Bear Trap CAUGHT overlay (above tokens) === */
+#trapCaughtLayer{
+  position:absolute; left:0; top:0; right:0; bottom:0;
+  pointer-events:none; z-index:1001; /* above tokens and above trapOverlayLayer */
+}
+.trap-caught{
+  position:absolute; width:104px; height:104px;
+  margin-left:-52px; margin-top:-52px;
+  background:center/contain no-repeat;
+  background-image:url('/assets/Icons/BearTrapCaught.png');
+  pointer-events:none;
+}
 </style>
 
   <style>
@@ -62,8 +114,71 @@
     html { background: #111 url('assets/background.png') center / cover no-repeat fixed !important; }
     body { background: transparent !important; }
   </style>
+
+<style id="bgmTogglePositioning">
+  #bgmToggle{ transform: translate(var(--bgm-x, 0px), var(--bgm-y, 0px)); }
+</style>
+
 </head>
-<body><div id="seriesScoreTop" class="glass"><div class="label">Control Points</div><div class="score"><span id="seriesP1">0</span> — <span id="seriesP2">0</span></div></div>
+<body>
+<script>
+// === Voice lines (client-only) ===
+const VOICES = {
+  NectarOfLife: (() => {
+    const a = new Audio('/assets/Sounds/Voice%20Lines/NectarOfLife.mp3'); // encode space
+    a.preload = 'auto';
+    a.volume = 1.0;
+    return a;
+  })(),
+
+Trickster_Sleight_A: (()=>{
+  const a = new Audio('/assets/Sounds/Voice%20Lines/IsThisYourCard.mp3');
+  a.preload = 'auto';
+  a.volume = 1.0;
+  return a;
+})(),
+Trickster_Sleight_B: (()=>{
+  const a = new Audio('/assets/Sounds/Voice%20Lines/WYLTSAMT.mp3');
+  a.preload = 'auto';
+  a.volume = 1.0;
+  return a;
+})(),
+
+Trickster_Swap: (()=>{
+  const a = new Audio('/assets/Sounds/Voice%20Lines/Abracadabra.mp3');
+  a.preload = 'auto';
+  a.volume = 1.0;
+  return a;
+})(),
+
+Loadstone_ReversePolarity: (()=>{
+  const a = new Audio('/assets/Sounds/Voice%20Lines/ReversePolarity.mp3');
+  a.preload = 'auto';
+  a.volume = 1.0;
+  return a;
+})(),
+
+Loadstone_PolarAttraction: (()=>{
+  const a = new Audio('/assets/Sounds/Voice%20Lines/PolarAttraction.mp3');
+  a.preload = 'auto';
+  a.volume = 1.0;
+  return a;
+})(),
+
+DeathBlossom_HealingBlossom: (()=>{
+  const a = new Audio('/assets/Sounds/Voice%20Lines/HealingBlossom.mp3');
+  a.preload = 'auto';
+  a.volume = 1.0;
+  return a;
+})()
+};
+function playVoice(key){
+  const a = VOICES[key];
+  if (!a) return;
+  try { a.pause(); a.currentTime = 0; a.play().catch(()=>{}); } catch(_){}
+}
+</script>
+<div id="seriesScoreTop" class="glass"><div class="label">Control Points</div><div class="score"><span id="seriesP1">0</span> — <span id="seriesP2">0</span></div></div>
   <div id="stage">
     <div id="board">
     <a id="btnHome" href="/home">⟵ Home</a>
@@ -119,6 +234,11 @@
   <!-- Floating Play button (positioned by JS just above the selected card) -->
   <button id="playFloat">Play</button>
 
+  
+  <!-- === BGM (match start) === -->
+  <audio id="bgmAudio" src="assets/Sounds/Music/Song1.mp3" preload="auto" loop></audio>
+  <button id="bgmToggle" style="position:fixed;top:10px;right:410px;z-index:9999;display:none;padding:4px 8px;border-radius:8px;border:1px solid #ffffff33;background:#1d120bcc;color:#efe6d8;font-weight:900;font-size:11px;box-shadow:0 4px 10px rgba(0,0,0,.35);cursor:pointer;">Mute</button>
+
   <script src="/socket.io/socket.io.js"></script>
 <script>
 
@@ -170,7 +290,17 @@ document.addEventListener('click', (e) => {
     wallOverlayLayer.id = 'wallOverlayLayer';
     board.appendChild(wallOverlayLayer);
 
-    // Control Points overlay + flag
+    
+    // Trap overlay layer (for Bear Trap icons)
+    const trapOverlayLayer = document.createElement('div');
+    trapOverlayLayer.id = 'trapOverlayLayer';
+    board.appendChild(trapOverlayLayer);
+
+    // Caught overlay layer (above tokens)
+    const trapCaughtLayer = document.createElement('div');
+    trapCaughtLayer.id = 'trapCaughtLayer';
+    board.appendChild(trapCaughtLayer);
+// Control Points overlay + flag
     const controlOverlayLayer = document.createElement('div');
     controlOverlayLayer.id = 'controlOverlayLayer';
     board.appendChild(controlOverlayLayer);
@@ -354,6 +484,7 @@ document.addEventListener('click', (e) => {
       };
     }
 
+    
     function clearGhosts(){ while (ghosts.length) ghosts.pop().remove(); }
     // Remove only red attack overlays, preserve blossom walls/auras
     function clearAttackGhosts(){
@@ -363,21 +494,9 @@ document.addEventListener('click', (e) => {
           ghosts.splice(i,1);
           el.remove();
         }
-
-    // Remove all non-blossom ghosts; keep blossom overlays visible during movement
-    function clearNonBlossomGhosts(){
-      for (let i = ghosts.length - 1; i >= 0; i--){
-        const el = ghosts[i];
-        if (!el || !el.classList) continue;
-        const keep = el.classList.contains('blossom') || el.classList.contains('blossom-pink') ||
-                     el.classList.contains('enemy-blossom') || el.classList.contains('enemy-blossom-pink');
-        if (!keep){ ghosts.splice(i,1); el.remove(); }
       }
     }
-      }
-    }
-
-    function addGhost(tileId, className=''){
+function addGhost(tileId, className=''){
       const p = tilePositions[tileId];
       const s = toScreen(p.x,p.y);
       const g = document.createElement('div');
@@ -393,6 +512,31 @@ document.addEventListener('click', (e) => {
       for (const t of tileIds) addGhost(t, cls);
     }
 
+    
+    // Mirror of entangle-vines reconcile: apply/remove .trapped class based on statusFX
+    function __reconcileTrappedOverlayFromStatus(){
+      try{
+        document.querySelectorAll('.token').forEach(tok=>{
+          const id = String(tok.dataset.id||"");
+          const fx = statusFX.get(id) || {};
+          const hasTrap = !!(fx.trapped && Number(fx.trapped) > 0);
+          if (hasTrap){
+            tok.classList.add('trapped');
+            tok.dataset.rooted = "true";
+            tok.classList.add('rooted');
+          }else{
+            tok.classList.remove('trapped');
+            // only clear rooted if not entangled either
+            const fxe = statusFX.get(id) || {};
+            const stillEnt = !!(fxe.entangle && Number(fxe.entangle) > 0);
+            if (!stillEnt){
+              tok.dataset.rooted = "false";
+              tok.classList.remove('rooted');
+            }
+          }
+        });
+      }catch(_){}
+    }
     /* ---------- Local board/card state ---------- */
     window.scopeBonusNext = 0;
     /* [ENERGY] Local energy snapshot + UI */
@@ -457,6 +601,106 @@ document.addEventListener('click', (e) => {
         showWallOverlay(tid);
       }
     }
+    
+    // ===== Trap overlays (Bear Trap) =====
+    const localTraps = new Set();
+    const trapTilesAnyOwner = new Set(); // hidden knowledge: all trap tiles, used to reveal on trigger to both clients
+    const trapOverlays = new Map();
+    let __turnTick = 0; // increments on every nextTurn
+    const trapPlacedAtTick = new Map(); // tileId -> tick when shown
+    const trapSuppressedLocal = new Set(); // tiles whose trap icon we purposely hid (TTL), don't re-add in reconcile
+    const trapTTL = new Map();
+    function showTrapOverlay(tileId){
+      if (trapOverlays.has(tileId)) return;
+      const el = document.createElement('div');
+      el.className = 'trap-overlay';
+      el.title = tileId;
+      const pos = tilePositions[tileId];
+      if (pos){
+        const s = toScreen(pos.x, pos.y);
+        el.style.left = s.x + 'px';
+        el.style.top  = s.y + 'px';
+      }
+      trapOverlayLayer.appendChild(el);
+      trapOverlays.set(tileId, el); try{ if(!trapTTL.has(tileId)) trapTTL.set(tileId, 4); }catch(_){ } try{ if(!trapPlacedAtTick.has(tileId)) trapPlacedAtTick.set(tileId, __turnTick); }catch(_){ }
+    }
+    function hideTrapOverlay(tileId){
+      const el = trapOverlays.get(tileId);
+      if (el){ el.remove(); trapOverlays.delete(tileId); try{ trapTTL.delete(tileId); }catch(_){ } try{ trapPlacedAtTick.delete(tileId); }catch(_){ } }
+    }
+    // === Bear Trap CAUGHT helpers ===
+const trapCaughtOverlays = new Map();
+    const trapCaughtTTL = new Map();
+    const trapCaughtTileByUnit = new Map(); // unitId -> tileId for caught overlay cleanup
+function showTrapCaughtOverlay(tileId){
+  if (trapCaughtOverlays.has(tileId)) return;
+  const el = document.createElement('div');
+  el.className = 'trap-caught';
+  el.title = tileId;
+  const pos = tilePositions[tileId];
+  if (pos){
+    const s = toScreen(pos.x, pos.y);
+    el.style.left = s.x + 'px';
+    el.style.top  = s.y + 'px';
+  }
+  trapCaughtLayer.appendChild(el);
+  trapCaughtOverlays.set(tileId, el); try{ if(!trapCaughtTTL.has(tileId)) trapCaughtTTL.set(tileId, 4); }catch(_){ }
+}
+// --- FORCE show caught at tile using absolute coordinates (ignores wrappers) ---
+function FORCE_showTrapCaughtAtTile(tileId){
+  try{
+    if (!tileId) return;
+    // Don't duplicate
+    try{ if (typeof trapCaughtOverlays!=='undefined' && trapCaughtOverlays.has(String(tileId))) return; }catch(_){}
+    const pos = tilePositions[String(tileId)];
+    if (!pos || typeof toScreen!=='function') return;
+    const s = toScreen(pos.x, pos.y);
+    const el = document.createElement('div');
+    el.className = 'trap-caught';
+    el.style.left = s.x + 'px';
+    el.style.top  = s.y + 'px';
+    try{
+      if (typeof trapCaughtLayer!=='undefined' && trapCaughtLayer && trapCaughtLayer.appendChild){
+        trapCaughtLayer.appendChild(el);
+      } else {
+        const host = document.getElementById('trapCaughtLayer') || document.body;
+        host.appendChild(el);
+      }
+    }catch(_){}
+    try{ if (typeof trapCaughtOverlays!=='undefined' && trapCaughtOverlays.set) trapCaughtOverlays.set(String(tileId), el); }catch(_){}
+  }catch(_){}
+}
+
+function hideTrapCaughtOverlay(tileId){
+  const el = trapCaughtOverlays.get(tileId);
+  if (el){ el.remove(); trapCaughtOverlays.delete(tileId); try{ trapCaughtTTL.delete(tileId); }catch(_){ } }
+}
+
+function applyTrapLocal(tileId){ localTraps.add(tileId); try{ trapSuppressedLocal.delete && trapSuppressedLocal.delete(tileId); }catch(_){ } showTrapOverlay(tileId);
+  }
+    function removeTrapLocal(tileId){ localTraps.delete(tileId); hideTrapOverlay(tileId);
+  }
+    function reconcileTrapOverlays(trapList){const keep = new Set((trapList||[]).filter(t=>t && t.owner===playerRole).map(t=> (t&&(t.tile||t))));
+      // exclude locally suppressed
+      try{ if (trapSuppressedLocal) { for (const tid of Array.from(trapSuppressedLocal.values())) keep.delete(tid); } }catch(_){ }
+      
+      // TTL / tick filter - do not show expired traps
+      try{
+        for (const tid of Array.from(keep.values())){
+          const ttl = (typeof trapTTL!=='undefined' && trapTTL && trapTTL.get) ? trapTTL.get(tid) : null;
+          const placed = (typeof trapPlacedAtTick!=='undefined' && trapPlacedAtTick && trapPlacedAtTick.get) ? trapPlacedAtTick.get(tid) : null;
+          const expired = ((ttl!==null && ttl<=0) || (typeof placed==='number' && (typeof __turnTick!=='undefined') && ((__turnTick - (placed|0)) >= 4)));
+          if (expired){ keep.delete(tid); try{ trapSuppressedLocal && trapSuppressedLocal.add && trapSuppressedLocal.add(tid); }catch(_){} try{ hideTrapOverlay(tid); }catch(_){} try{ trapTTL && trapTTL.delete && trapTTL.delete(tid); }catch(_){} try{ trapPlacedAtTick && trapPlacedAtTick.delete && trapPlacedAtTick.delete(tid); }catch(_){} }
+        }
+      }catch(_){}
+      /* TTL filter */
+for (const tid of Array.from(trapOverlays.keys())){
+        if (!keep.has(tid)) hideTrapOverlay(tid);
+
+      }for (const tid of keep){ showTrapOverlay(tid);
+  }
+    }
+
     const localBlossomWalls = new Set();
     function applyBlossomWallLocal(tileId){ localBlossomWalls.add(tileId); addGhost(tileId, 'block blossom'); }
     function removeBlossomWallLocal(tileId){ localBlossomWalls.delete(tileId); [...document.querySelectorAll('.ghost.block.blossom')].filter(g=>g.title===tileId).forEach(el=>el.remove()); }
@@ -586,9 +830,15 @@ const ABIL_OVERRIDES = {
 
     /* ---------- Tokens ---------- */
     /* ---------- Status FX (UI only) ---------- */
-    const STATUS_EMOJI = { fireDot:'🔥', ironSkin:'🛡️', entangle:'🌿', redirect:'🧿' , skillCheck:'🎲', bear:'🐻', invisible:'👻' };
-    const STATUS_DEFAULT_TURNS = { fireDot:3, ironSkin:2, entangle:2, redirect:2 , skillCheck:1 , invisible:2 };
+    const STATUS_EMOJI = { fireDot:'🔥', ironSkin:'🛡️', entangle:'🍃', redirect:'🧿' , trapped:'🪤', skillCheck:'🎲', bear:'🐻', invisible:'👻' };
+    const STATUS_DEFAULT_TURNS = { fireDot:3, ironSkin:2, entangle:2, redirect:2 , skillCheck:1 , invisible:2 , trapped:2 };
     const statusFX = new Map(); // id -> { fireDot:n, ironSkin:n, entangle:n }
+      // Track who was entangled via the Entangle card (not traps)
+      const entangledByCard = new Set();
+    // Track last movement by char id for trap correlation
+    const lastMoveToTile = new Map();
+    const lastMoveAt = new Map();
+
 
     
     function updatePrimaryDesc(id){
@@ -625,6 +875,17 @@ text = `${meta.primary.name}: ${amt} (range ${meta.primary.range})`;
       const firstLine = card.querySelector('.desc .descLine:first-child');
       if (firstLine) firstLine.textContent = text;
     }
+    function entangleEmojiFor(id){
+      try{
+        if (typeof trapCaughtTileByUnit !== 'undefined' &&
+            trapCaughtTileByUnit && trapCaughtTileByUnit.has(String(id))) {
+          return '🪤';
+        }
+      }catch(_){}
+      return '🍃';
+    }
+    
+
 function renderStatusRow(id){
       const card = document.querySelector(`.charCard[data-id="${id}"]`);
       if (!card) return;
@@ -632,9 +893,28 @@ function renderStatusRow(id){
       if (!row) return;
       const fx = statusFX.get(id) || {};
       const entries = Object.entries(fx).filter(([,v])=>v>0);
+      // === Mirror entangle overlay onto the character CARD ===
+      (function(){
+        const cardEl = card;
+        if (!cardEl) return;
+        let vines = cardEl.querySelector('.vinesOverlay');
+        const ent = Number(fx && fx.entangle || 0) > 0;
+        if (ent){
+          if (!vines){
+            vines = document.createElement('div');
+            vines.className = 'vinesOverlay';
+            cardEl.appendChild(vines);
+          } else if (vines.parentNode !== cardEl){
+            cardEl.appendChild(vines);
+          }
+        } else if (vines){
+          vines.remove();
+        }
+      })();
+
       if (!entries.length){ row.innerHTML = ''; return; }
       row.innerHTML = entries.map(([k,v]) => {
-        const emoji = STATUS_EMOJI[k] || '•';
+        const emoji = (k === 'entangle') ? entangleEmojiFor(id) : (STATUS_EMOJI[k] || '•');
         return `<span class="statusPill" data-k="${k}"><span class="em">${emoji}</span><span class="num">${v}</span></span>`;
       }).join('');
       try{ updatePrimaryDesc(String(id)); }catch(e){}
@@ -649,13 +929,82 @@ function renderStatusRow(id){
       document.querySelectorAll('.charCard').forEach(c=>{
         renderStatusRow(c.dataset.id);
       });
+      try{
+        if (fxMap){
+          for (const [id, obj] of Object.entries(fxMap)){
+            if (false && obj && obj.entangle){ /* patched: disable heuristic */
+              const key = String(id);
+              const t = lastMoveToTile.get(key);
+              const when = lastMoveAt.get(key);
+              const now = Date.now();
+              if (t && when && (now - when) < 5000){
+                if (typeof showTrapCaughtOverlay === 'function' && !trapCaughtOverlays.has(t)) showTrapCaughtOverlay(t); try{ trapCaughtTileByUnit.set(String(id), t); }catch(_){}
+              }
+            }
+          }
+        }
+      }catch(_){}
+      
+      /* Force BearTrapCaught overlay when 'trapped' status is present */
+      try{
+        if (fxMap){
+          for (const [id, obj] of Object.entries(fxMap)){
+            const key = String(id);
+            const isTrapped = !!(obj && obj.trapped && Number(obj.trapped) > 0);
+            const existing = (typeof trapCaughtTileByUnit!=='undefined' && trapCaughtTileByUnit && trapCaughtTileByUnit.get) ? trapCaughtTileByUnit.get(key) : null;
+            if (isTrapped){
+              // Prefer the unit's current tile
+              let tileId = null;
+              const tok = document.querySelector(`.token[data-id="${key}"]`);
+              if (tok && tok.dataset && tok.dataset.tile) tileId = String(tok.dataset.tile);
+              if (!tileId && typeof lastMoveToTile!=='undefined' && lastMoveToTile) tileId = String(lastMoveToTile.get(key)||'');
+              if (tileId){
+                if (typeof showTrapCaughtOverlay==='function' && !trapCaughtOverlays.has(tileId)) showTrapCaughtOverlay(tileId);
+                try{ trapCaughtTileByUnit.set(key, tileId); }catch(_){}
+              }
+            }else{
+              // No longer trapped: remove any caught overlay tied to this unit
+              if (existing){ try{ hideTrapCaughtOverlay(existing); }catch(_){ } try{ trapCaughtTileByUnit.delete(key); }catch(_){ } }
+            }
+          }
+        }
+      }catch(_){}
+    try{ __reconcileEntangleVinesFromCard(); }catch(_){/* noop */}
+      try{ __reconcileTrappedOverlayFromStatus(); }catch(_){}
+
     }
     function addOrUpdateStatusLocal(id, kind, turns){
+      try{
+        if (false && kind === 'entangle'){ /* patched: disable heuristic */
+          const key = String(id);
+          const t = lastMoveToTile.get(key);
+          const when = lastMoveAt.get(key);
+          const now = Date.now();
+          if (t && when && (now - when) < 5000){
+            if (typeof showTrapCaughtOverlay === 'function' && !trapCaughtOverlays.has(t)) { showTrapCaughtOverlay(t); try{ trapCaughtTileByUnit.set(String(id), t); }catch(_){ } }
+          }
+        }
+      }catch(_){}
+    
       if (!id) return;
       const cur = statusFX.get(String(id)) || {};
       cur[kind] = Math.max(turns ?? STATUS_DEFAULT_TURNS[kind] ?? 1, cur[kind]||0);
       statusFX.set(String(id), cur);
-      renderStatusRow(String(id));
+      renderStatusRow(String(id)); try{ __reconcileTrappedOverlayFromStatus(); }catch({}){}
+      try{
+        if (kind === 'trapped'){
+          // Determine the unit's current tile and force the caught overlay
+          let tileId = null;
+          const tok = document.querySelector(`.token[data-id="${String(id)}"]`);
+          if (tok && tok.dataset && tok.dataset.tile) tileId = String(tok.dataset.tile);
+          if (!tileId && typeof lastMoveToTile!=='undefined' && lastMoveToTile) tileId = String(lastMoveToTile.get(String(id))||'');
+          if (tileId){
+            if (typeof showTrapCaughtOverlay==='function' && !trapCaughtOverlays.has(tileId)) showTrapCaughtOverlay(tileId);
+            try{ trapCaughtTileByUnit.set(String(id), tileId); }catch(_){}
+          }
+        }
+      }catch(_){}
+    
     }
 
     function tokenPortraitFor(id){
@@ -777,14 +1126,13 @@ pendingMoves.set(token.dataset.id, startTile);
 
     
     /* ---------- Root locks (Entangle) ---------- */
-    function applyRootLocks(locks){
-      document.querySelectorAll('.token').forEach(t=>{
+    function applyRootLocks(locks){document.querySelectorAll('.token').forEach(t=>{
         const id = t.dataset.id;
         const rooted = !!(locks && locks[id] && locks[id].entangle);
         if (rooted){
           t.classList.add('rooted');
           t.dataset.rooted = "true";
-        } else {
+        }else {
           t.classList.remove('rooted');
           if (t.dataset.rooted) delete t.dataset.rooted;
         }
@@ -1064,7 +1412,7 @@ abilitySel = { kind, sourceId, range, exact };
     function costOf(n){ try { return (CARD_COST[n] ?? CARD_COST[String(n).replace(/\s+/g,'')] ?? 0) | 0; } catch(e){ return 0; } }
 
 const CARD_COST = {
-  Cleanse: 3,
+Cleanse: 3,
   Siphon: 2,
   Fireball: 4,
   Entangle: 2,
@@ -1073,15 +1421,20 @@ const CARD_COST = {
   Wall: 1,
   Shatter: 1,
   InvisibilityPotion: 2,
-  Scope: 2,};
+  Scope: 2,
+  SideStep: 2,
+  BearTrap: 2,
+};
 
     /* ---------- Discard UI helpers ---------- */
     const CARD_DESC = {
-  Cleanse: 'Remove all status effects from a unit (any range)',
+Cleanse: 'Remove all status effects from a unit (any range)',
   Siphon:  'Instant: pay 2, gain 1 energy; opponent loses 3',
   Sprint:  'Gain 1 move',
   Wall:   'Place a wall (8 turns)',
-  Shatter:'Remove a wall'
+  Shatter:'Remove a wall',
+  Scope: '+1 range on next ability',
+  'Side Step': 'Give a unit +1 move'
 };
 
     function renderDiscard(slotEl, type){
@@ -1095,9 +1448,8 @@ const CARD_COST = {
   img.src = cardImagePathFor(type);
   cardWrap.appendChild(img);
   slotEl.appendChild(cardWrap);
-      updatePrimaryDesc(String(id));
-
 }
+
 
     function setDiscardByWho(who, type){
       if (!type) return; // persist last shown discard if server sends null/undefined
@@ -1131,7 +1483,20 @@ const CARD_COST = {
   } catch(e) { /* no-op */ }
 })();
 
-      if (playerRole === 'player1'){
+      
+    // Play Nectar of Life voice line when its image lands in *your* discard slot
+    try{
+      // Normalize the type and gate so we only react when the discard actually CHANGES.
+      window.__discardSeen = window.__discardSeen || { player1:null, player2:null };
+      const _norm = String(type || '').toLowerCase().replace(/[\s_]+/g,'');
+      const _changed = (window.__discardSeen[who] !== _norm);
+      window.__discardSeen[who] = _norm;
+      const _isNectar = (_norm === 'nectaroflife' || _norm === 'mend');
+      if (_changed && _isNectar && typeof playVoice === 'function' && who === playerRole){
+        playVoice('NectarOfLife');
+      }
+    }catch(_){}
+    if (playerRole === 'player1'){
         if (who === 'player1') renderDiscard(discardSelfSlot, type);
         else if (who === 'player2') renderDiscard(discardOtherSlot, type);
       }else if (playerRole === 'player2'){
@@ -1207,6 +1572,18 @@ const CARD_COST = {
         cardArmed = false;
         return;
       }
+      if (name === 'Bear Trap'){
+        if (myEnergy() < (CARD_COST['BearTrap']||0)) { flashEnergyNotEnough(); return; }
+        const occ = occupied(snap.id) || localWalls.has(snap.id) || (localTraps && localTraps.has && localTraps.has(snap.id));
+        if (occ) return;
+        // Server placement (authoritative) + local UI
+        socket.emit('playCard', { type:'BearTrap', tile:snap.id });
+        applyTrapLocal(snap.id);
+        moveToDiscard(selectedCard);
+        playedCardThisTurn = true;
+        cardArmed = false;
+        return;
+      }
       if (name === 'Shatter'){
         if (myEnergy() < (CARD_COST['Shatter']||0)) { flashEnergyNotEnough(); return; }
         if (!localWalls.has(snap.id)) return;
@@ -1241,6 +1618,8 @@ const CARD_COST = {
   { n:'Wall',     d:'Place a wall (8 turns)' },
   { n:'Shatter',  d:'Remove a wall' },
   { n:'Scope', d:'Add +1 range on next ability' },
+  { n:'Side Step', d:'Give a unit +1 move' },
+  { n:'Bear Trap', d:'Trap that damages and immobilizes opponents' },
 ];
     let deckIdx = 0;
 
@@ -1305,7 +1684,30 @@ const CARD_COST = {
         return;
       }
 
+      // Bear Trap — arm and choose a tile
+      if (name === 'Bear Trap'){
+        if (myEnergy() < (CARD_COST['BearTrap']||0)) { flashEnergyNotEnough(); return; }
+        const open = Object.keys(tilePositions).filter(t=> !occupied(t) && !localWalls.has(t) && !(localTraps && localTraps.has && localTraps.has(t)));
+        moveToDiscard(selectedCard);
+        playedCardThisTurn = true;
+        armedCardName = 'Bear Trap';
+        socket.emit('revealCard', { type: name });
+        highlightSet(open, 'attack');
+        cardArmed = true;
+        return;
+      }
+
+
     // Movement buffs (immediate resolve)
+      if (name === 'Side Step'){
+        // Mirror Sprint structure: energy check, movement gate, emit + discard
+        if (myEnergy() < (CARD_COST['SideStep']||0)) { flashEnergyNotEnough(); return; }
+        socket.emit('playCard', { type:'SideStep' });
+        moveToDiscard(selectedCard);
+        playedCardThisTurn = true;
+        return;
+      }
+
       if (name === 'Sprint'){
         if (myEnergy() < (CARD_COST['Sprint']||0)) { flashEnergyNotEnough(); return; }
         if (turnState.usedMovement) return;
@@ -1380,7 +1782,14 @@ const CARD_COST = {
       }
     }
 
-    const CARD_IMG = { 'Iron Skin': 'Iron_Skin.png', 'Sprint': 'Sprint.png', 'InvisibilityPotion': 'Invisibility_Potion.png', 'Scope':'Scope.png' };
+    const CARD_IMG = {'Iron Skin': 'Iron_Skin.png',
+  'Invisibility Potion': 'Invisibility_Potion.png',
+  'Side Step': 'Side_Step.png',
+  'SideStep': 'Side_Step.png',
+  'Scope': 'Scope.png',
+  'Bear Trap': 'Bear_Trap.png',
+  'BearTrap': 'Bear_Trap.png'
+};
 
 // Map for character-ability images in /assets/Character Ability Cards
 const ABILITY_CARD_IMG = {
@@ -1412,6 +1821,8 @@ const ABILITY_CARD_IMG = {
 };
 
 function cardImagePathFor(type){
+  // Normalize: strip zero-width markers used to force unique discards
+  type = String(type).replace(/[\u200B-\u200D\uFEFF]/g, '');
   // DM dice w/ Skill Check -> 1d6SC-2..7.png
   if (/^1D6SC-[2-7]$/i.test(type)) {
     const face = String(type).split('-')[1];
@@ -1723,6 +2134,10 @@ socket.on('fullState', full=>{ renderControlFromState(full);
       // Update walls and tokens
       localWalls.clear(); clearGhosts();
       reconcileWallOverlays(full.blocked||[]);
+      localTraps.clear();
+      reconcileTrapOverlays((full.traps||[]).filter(t=>t && t.owner===playerRole));
+      (full.traps||[]).forEach(t=>{ if (t && t.owner === playerRole) applyTrapLocal(t.tile); });
+
       (full.blocked||[]).forEach(w=> applyWallLocal(w.tile));
       (full.blossomBlocked||[]).forEach(w=> { (w.owner===playerRole ? applyBlossomWallLocal : applyEnemyBlossomWallLocal)(w.tile); });
       (full.blossomPinkBlocked||[]).forEach(w=> { (w.owner===playerRole ? applyBlossomPinkWallLocal : applyEnemyBlossomPinkWallLocal)(w.tile); });
@@ -1773,7 +2188,7 @@ socket.on('fullState', full=>{ renderControlFromState(full);
       refreshDraggables();
     });
 
-    socket.on('nextTurn', who=>{
+    socket.on('nextTurn', who=>{__turnTick++; try{ for (const [tid,placed] of Array.from(trapPlacedAtTick.entries())){ if ((__turnTick - (placed|0)) >= 4){ hideTrapOverlay(tid); trapSuppressedLocal && trapSuppressedLocal.add && trapSuppressedLocal.add(tid); trapPlacedAtTick.delete(tid); if (trapTTL) trapTTL.delete(tid); } } }catch(_){ }  try{ for (const [tid,n] of Array.from(trapTTL.entries())){ const left=(n|0)-1; if (left<=0){ hideTrapOverlay(tid); trapTTL.delete(tid); try{ trapTilesAnyOwner && trapTilesAnyOwner.delete && trapTilesAnyOwner.delete(tid); }catch(_){ } try{ trapSuppressedLocal && trapSuppressedLocal.add && trapSuppressedLocal.add(tid); }catch(_){ } } else { trapTTL.set(tid,left); } } for (const [tid,n] of Array.from(trapCaughtTTL.entries())){ const left=(n|0)-1; if (left<=0){ hideTrapCaughtOverlay(tid); trapCaughtTTL.delete(tid); } else { trapCaughtTTL.set(tid,left); } } }catch(_){ } 
       // Ensure client UI permits fresh move/action each turn
       turnState = { usedMovement:false, usedAction:false, cardPlayed:false };
       const wasMine = (playerRole !== who);
@@ -1812,7 +2227,7 @@ socket.on('fullState', full=>{ renderControlFromState(full);
 });
 
     socket.on('move', ({ id, owner, toTile, capturedId })=>{
-      if (owner === playerRole && moveBuffOnce) { moveBuff.stepsBonus = 0; moveBuffOnce = false; } const token = document.querySelector(`.token[data-id="${id}"]`);
+      try{ lastMoveToTile.set(String(id), toTile); lastMoveAt.set(String(id), Date.now()); }catch(_){ } try{ if (toTile && localTraps && localTraps.has && localTraps.has(toTile)) { hideTrapOverlay(toTile); try{ localTraps.delete(toTile); }catch(_){ } showTrapCaughtOverlay(toTile); } }catch(_){ } if (owner === playerRole && moveBuffOnce) { moveBuff.stepsBonus = 0; moveBuffOnce = false; } const token = document.querySelector(`.token[data-id="${id}"]`);
       if (token){
         token.dataset.tile = toTile;
         token.dataset.hasMoved = "true";
@@ -1874,13 +2289,71 @@ socket.on('fullState', full=>{ renderControlFromState(full);
     });
 
     socket.on('abilityUsed', ({ kind, sourceId, targetId, name })=>{
+/* Death Blossom Healing Blossom voice */
+try{
+  const _n = String(name || '').toLowerCase().replace(/[\s_]+/g,'');
+  if (_n === 'healingblossom' && typeof playVoice === 'function'){
+    playVoice('DeathBlossom_HealingBlossom');
+  }
+}catch(__){}
+
   
 let who = 'player1';
 try {
   const token = document.querySelector(`.token[data-id="${sourceId}"]`);
   who = token ? (token.dataset.owner || 'player1') : 'player1';
-  if (name) setDiscardByWho(who, name);
+  if (name) {
+      try {
+        window.__lastAbilityName = window.__lastAbilityName || { player1:null, player2:null };
+        window.__abilityDiscardSeq = window.__abilityDiscardSeq || { player1:0, player2:0 };
+        let showType = name;
+        if (window.__lastAbilityName[who] === name) {
+          // Alternate hidden markers so the normalized string changes every time:
+          const n = (window.__abilityDiscardSeq[who] = (window.__abilityDiscardSeq[who]||0) + 1);
+          const marker = (n % 2 === 1) ? '\u200B' : '\u200C'; // ZWSP / ZWNJ
+          showType = name + marker;
+        } else {
+          window.__abilityDiscardSeq[who] = 0;
+        }
+        window.__lastAbilityName[who] = name;
+        setDiscardByWho(who, showType);
+      } catch (__) {
+        setDiscardByWho(who, name);
+      }
+    }
 } catch(e){}
+
+/* Trickster Sleight of Hand voice */
+try{
+          const _n = String(name || '').toLowerCase().replace(/[\s_]+/g,'');
+          if (_n === 'sleightofhand' && typeof playVoice === 'function'){
+            playVoice('Trickster_Sleight_A');
+          }
+    }catch(_){}
+
+/* Trickster Swap voice */
+try{
+  const _n2 = String(name || '').toLowerCase().replace(/[\s_]+/g,'');
+  if (_n2 === 'swap' && typeof playVoice === 'function'){
+    playVoice('Trickster_Swap');
+  }
+}catch(__){}
+
+/* Loadstone Reverse Polarity voice */
+try{
+  const _nx = String(name || '').toLowerCase().replace(/[\s_]+/g,'');
+  if (_nx === 'reversepolarity' && typeof playVoice === 'function'){
+    playVoice('Loadstone_ReversePolarity');
+  }
+}catch(___){}
+
+/* Loadstone Polar Attraction voice */
+try{
+  const _nx = String(name || '').toLowerCase().replace(/[\s_]+/g,'');
+  if (_nx === 'polarattraction' && typeof playVoice === 'function'){
+    playVoice('Loadstone_PolarAttraction');
+  }
+}catch(___){}
 if (who === playerRole){
   try{
     // Reset local Scope preview bonus immediately after an ability resolves
@@ -1924,7 +2397,7 @@ if (who === playerRole){
 socket.on('cardRevealed', ({ who, type })=>{ setDiscardByWho(who, type); });
 
     socket.on('cardPlayed', ({ type, tile, who, owner, stepsBonus, minSteps, targetId })=>{
-      // local energy adjust for instant-cast cards
+      try{ if ((type==='BearTrap' || name==='Bear Trap' || card==='BearTrap') && tile){ trapTilesAnyOwner.add(tile); } }catch(_){ } // local energy adjust for instant-cast cards
       if (who === playerRole && CARD_COST[type]){ const now=(energyBySeat[playerRole]||0) - (CARD_COST[type]||0); energyBySeat[playerRole]=Math.max(0, now); updateEnergyBar(energyBySeat[playerRole]); }
       if (type === 'Scope' && who === playerRole){ window.scopeBonusNext = (window.scopeBonusNext||0) + 1; }
       if (who === playerRole){
@@ -1946,11 +2419,40 @@ socket.on('cardRevealed', ({ who, type })=>{ setDiscardByWho(who, type); });
         if (type === 'Fireball')  addOrUpdateStatusLocal(targetId, 'fireDot', 3);
         if (type === 'IronSkin')  addOrUpdateStatusLocal(targetId, 'ironSkin', 2);
         if (type === 'Entangle')  addOrUpdateStatusLocal(targetId, 'entangle', 2);
-        if (type === 'InvisibilityPotion') { addOrUpdateStatusLocal(targetId, 'invisible', 2); try{ applyInvisibilityOverlays(); }catch(e){} }
+        try {
+          if (typeof entangledByCard !== 'undefined' && targetId) {
+            entangledByCard.add(String(targetId));
+          }
+          const tok = document.querySelector('.token[data-id="'+targetId+'"]');
+          if (tok) { tok.classList.add('entangled'); try{ __ensureVinesOverlay(String(targetId), true); }catch(_){}}
+        } catch(e) {}
+
+                try{ entangledByCard.add(String(targetId)); const tok=document.querySelector(`.token[data-id=\"${targetId}\"]`); if (tok) tok.classList.add('entangled'); }catch(_){}
+if (type === 'InvisibilityPotion') { addOrUpdateStatusLocal(targetId, 'invisible', 2); try{ applyInvisibilityOverlays(); }catch(e){} }
       }
 
     });
+
+    // Bear Trap trigger: remove overlay & apply root status locally
+    socket.on('trapTriggered', ({tile, targetId, rootTurns })=>{
+  try{
+    // Hide owner-only trap icon (if visible locally)
+    try{ if (tile) hideTrapOverlay(String(tile)); }catch(_){}
+    // Spawn caught overlay for both players (top layer + token class)
+    try{ if (tile) showTrapCaughtOverlay(String(tile)); }catch(_){}
+    try{
+      if (targetId){
+        addOrUpdateStatusLocal(String(targetId), 'trapped', rootTurns || 2);
+        const tok = document.querySelector(`.token[data-id="${String(targetId)}"]`);
+        if (tok){ tok.classList.add('trapped'); tok.dataset.rooted="true"; tok.classList.add('rooted'); }
       }
+    }catch(_){}
+  }catch(_){}
+});
+
+
+      }
+            if (type === 'BearTrap' && tile && owner === playerRole) applyTrapLocal(tile);
       if (type === 'Wall' && tile) applyWallLocal(tile);
       if (type === 'BlossomWall' && tile){ const me = (owner === playerRole); (me ? applyBlossomWallLocal : applyEnemyBlossomWallLocal)(tile); neighbors(tile).forEach(tid=> (me ? applyBlossomPinkWallLocal : applyEnemyBlossomPinkWallLocal)(tid)); }
       if (type === 'Shatter' && tile) { if (!localBlossomWalls.has(tile)) removeWallLocal(tile); }
@@ -1961,7 +2463,8 @@ socket.on('cardRevealed', ({ who, type })=>{ setDiscardByWho(who, type); });
       const tok = document.querySelector(`.token[data-id="${id}"]`);
       if (tok) tok.remove();
       statusFX.delete(String(id));
-      renderStatusRow(String(id));
+            try{ entangledByCard.delete(String(id)); }catch(_){/*noop*/}
+renderStatusRow(String(id)); try{ __reconcileTrappedOverlayFromStatus(); }catch({}){}
       if (charState.has(id)){
         const st = charState.get(id); st.hp = 0; st.dead = true; updateHPBar(id);
         flashCard(id, 'dmg');
@@ -2022,7 +2525,10 @@ function updateEntangleOverlays(charsState){
       const el = document.querySelector(`.token[data-id="${id}"]`);
       if (!el) continue;
       const ent = !!(cs.fx && cs.fx.entangle && cs.fx.entangle.remaining > 0);
-      el.classList.toggle('entangled', ent);
+      const isTrap = (typeof __trapEntangled !== 'undefined') && __trapEntangled.has(String(id));
+      const show = ent && !isTrap;
+      el.classList.toggle('entangled', show);
+      try{ __ensureVinesOverlay(String(id), show); }catch(_){ }
     }
   }catch(e){ /* no-op */ }
 }
@@ -2486,5 +2992,456 @@ document.addEventListener('click', (ev)=>{
   document.addEventListener('pointercancel', endDrag, true);
 })();
 </script>
+<!-- Hard-expiry v2 for BearTrap overlays (authoritative client cleanup) -->
+<script id="trap-hard-expiry" data-version="2">
+(function(){
+  if (window.__TRAP_HARD_EXPIRY_V2__) return;
+  window.__TRAP_HARD_EXPIRY_V2__ = true;
+
+  // Debug flag: set true to see console logs
+  const DEBUG = false;
+  function log(){ if (DEBUG && console && console.debug) console.debug("[TRAP-EXPIRY]", ...arguments); }
+
+  // Canonical maps (globals we maintain)
+  const forceExpireAtTick = (window.forceExpireAtTick ||= new Map()); // tileId -> absolute tick when to delete
+  const expireStartTick   = (window.expireStartTick   ||= new Map()); // tileId -> tick when set
+  const trapOverlays      = (window.trapOverlays      ||= new Map());
+  const trapCaughtOverlays= (window.trapCaughtOverlays||= new Map());
+  const trapSuppressedLocal = (window.trapSuppressedLocal ||= new Set());
+  const trapPlacedAtTick  = (window.trapPlacedAtTick  ||= new Map());
+  const trapTilesAnyOwner = (window.trapTilesAnyOwner ||= new Set());
+  const localTraps        = (window.localTraps        ||= new Set());
+
+  function qselAllForTile(tileId){
+    const tid = String(tileId);
+    const a = Array.from(document.querySelectorAll('.trap-overlay[title="'+tid+'"]'));
+    const b = Array.from(document.querySelectorAll('.trap-caught[title="'+tid+'"]'));
+    return a.concat(b);
+  }
+
+  function forceRemoveTrapTile(tileId){
+    const tid = String(tileId);
+    try{
+      // purge DOM by map handle
+      try{ const el = trapOverlays.get(tid); if (el && el.remove) el.remove(); }catch(_){}
+      trapOverlays.delete(tid);
+      try{ const el2 = trapCaughtOverlays.get(tid); if (el2 && el2.remove) el2.remove(); }catch(_){}
+      trapCaughtOverlays.delete(tid);
+
+      // purge DOM by selector fallback
+      for (const el of qselAllForTile(tid)){ try{ el.remove(); }catch(_){} }
+
+      // prevent re-add from reconcile/fullstate
+      trapSuppressedLocal.add(tid);
+      try{ if (window.trapTTL && trapTTL.delete) trapTTL.delete(tid); }catch(_){}
+      trapPlacedAtTick.delete(tid);
+      trapTilesAnyOwner.delete(tid);
+      localTraps.delete(tid);
+      forceExpireAtTick.delete(tid);
+      expireStartTick.delete(tid);
+      log("Removed overlay for", tid);
+    }catch(e){ log("forceRemoveTrapTile error", e); }
+  }
+
+  function nowTick(){ try{ return (window.__turnTick|0); }catch(_){ return 0; } }
+
+  function gcTrapOverlays(){
+    const now = nowTick();
+    try{
+      for (const [tid, exp] of Array.from(forceExpireAtTick.entries())){
+        if (now >= (exp|0)){
+          forceRemoveTrapTile(tid);
+        }
+      }
+    }catch(e){ log("gc error", e); }
+
+    // Extra safety: any trap overlay older than 4 ticks from placement must go
+    try{
+      document.querySelectorAll('.trap-overlay').forEach(el=>{
+        const tid = el && el.getAttribute('title');
+        if (!tid) return;
+        const placed = (trapPlacedAtTick.get(tid) ?? expireStartTick.get(tid) ?? 0)|0;
+        if (now - placed >= 4){
+          forceRemoveTrapTile(tid);
+        }
+      });
+    }catch(_){}
+  }
+
+  // Hook trap trigger to start a 4-turn expiry window
+  if (window.socket && window.socket.on){
+    window.socket.on('trapTriggered', ({ tile })=>{
+      try{
+        const tid = String(tile);
+        const base = nowTick();
+        expireStartTick.set(tid, base);
+        forceExpireAtTick.set(tid, base + 4);
+        // make sure original icon is allowed to be seen during the window
+        try{ trapSuppressedLocal.delete(tid); }catch(_){}
+        // ensure it's visible now if your logic expects that
+        try{ if (typeof showTrapOverlay === 'function') showTrapOverlay(tid); }catch(_){}
+        log("trigger -> expire at", tid, base+4);
+      }catch(e){ log("trapTriggered hook err", e); }
+    });
+
+    // On every turn, run GC pass (we DO NOT change __turnTick here)
+    window.socket.on('nextTurn', ()=>{ setTimeout(gcTrapOverlays, 0); });
+  }
+
+  // Patch reconcile and showTrapOverlay to respect expiry
+  const _recon = window.reconcileTrapOverlays;
+  window.reconcileTrapOverlays = function(list){
+    try{
+      const now = nowTick();
+      if (Array.isArray(list)){
+        for (const entry of list){
+          const tid = String(entry && (entry.tile || entry));
+          const exp = forceExpireAtTick.get(tid);
+          if ((exp!=null && now >= (exp|0)) || ((trapPlacedAtTick.has(tid)) && ((now - (trapPlacedAtTick.get(tid)|0)) >= 4))){
+            forceRemoveTrapTile(tid);
+          }
+        }
+      }
+    }catch(_){}
+    try{ return _recon && _recon.apply(this, arguments); }catch(_){ return undefined; }
+  };
+
+  const _show = window.showTrapOverlay;
+  window.showTrapOverlay = function(tileId){
+    const tid = String(tileId);
+    const now = nowTick();
+    const exp = forceExpireAtTick.get(tid);
+    if (exp!=null && now >= (exp|0)){
+      // refuse to show expired overlays
+      forceRemoveTrapTile(tid);
+      return;
+    }
+    return _show && _show.apply(this, arguments);
+  };
+
+  // As an absolute last resort, run a timer sweep
+  // Debug helpers
+  window.forceExpireTrapNow = function(tileId){
+    const tid = String(tileId);
+    forceExpireAtTick.set(tid, nowTick()); gcTrapOverlays();
+  };
+  window.nukeAllTraps = function(){
+    try{
+      const tiles = new Set();
+      document.querySelectorAll('.trap-overlay,.trap-caught').forEach(el=>{ const t=el.getAttribute('title'); if (t) tiles.add(t); });
+      for (const t of tiles) forceRemoveTrapTile(t);
+    }catch(_){}
+  };
+  setInterval(gcTrapOverlays, 400);
+})();</script>
+
+<script>
+(function(){
+  if (!window.__TRAP_CLEAR_LISTENER__) {
+    window.__TRAP_CLEAR_LISTENER__ = true;
+    try {
+      socket.on('trapCleared', ({ tiles })=>{
+        try{
+          (tiles||[]).forEach(tid=>{
+            try{ hideTrapOverlay(String(tid)); }catch(_){}
+            try{
+              // also remove any 'caught' image
+              if (window.trapCaughtOverlays && trapCaughtOverlays.get && trapCaughtOverlays.has(String(tid))){
+                const el = trapCaughtOverlays.get(String(tid)); if (el && el.remove) el.remove();
+                trapCaughtOverlays.delete(String(tid));
+              }
+            }catch(_){}
+          });
+        }catch(_){}
+      });
+    } catch(_){ /* ignore */ }
+  }
+})();
+
+/* === Reconcile only card-based entangle overlays === */
+function __reconcileEntangleVinesFromCard(){
+  try{
+    const ids = Array.from(entangledByCard);
+    for (const id of ids){
+      const fx = (statusFX && statusFX.get) ? (statusFX.get(String(id))||{}) : {};
+      const active = !!( (typeof fx.entangle === 'number' && fx.entangle > 0) ||
+                         (fx.entangle && typeof fx.entangle === 'object' && (fx.entangle.remaining||0) > 0) );
+      const tok = document.querySelector(`.token[data-id="${id}"]`);
+      if (tok) tok.classList.toggle('entangled', active);
+      if (!active){ entangledByCard.delete(String(id)); }
+    }
+  }catch(e){ /* no-op */ }
+}
+
+/* === Vines overlay management (robust) === */
+const __vinesElById = new Map();      // id -> DOM element appended to token
+const __trapEntangled = new Set();    // ids entangled by Bear Trap
+
+function __ensureVinesOverlay(id, shouldShow){
+  const tok = document.querySelector(`.token[data-id="${id}"]`);
+  if (!tok) return;
+  let el = __vinesElById.get(String(id));
+  if (shouldShow){
+    if (!el){
+      el = document.createElement('div');
+      el.className = 'vinesOverlay';
+      __vinesElById.set(String(id), el);
+      tok.appendChild(el);
+    }
+  }else{
+    if (el){
+      el.remove();
+      __vinesElById.delete(String(id));
+    }
+  }
+}
+
+// Track trap roots so vines don't show for bear traps
+try{
+  socket.on('trapTriggered', ({ targetId })=>{
+    try { if (targetId != null) __trapEntangled.add(String(targetId)); } catch(_){}
+  });
+} catch(_){}
+
+/* Reconcile vines on any entangle status, excluding trap-based roots */
+function __reconcileVinesFromStatus(){
+  try{
+    document.querySelectorAll('.token').forEach(tok=>{
+      const id = String(tok.dataset.id);
+      const fx = (statusFX && statusFX.get) ? (statusFX.get(id) || {}) : {};
+      const active = (typeof fx.entangle === 'number' && fx.entangle > 0);
+      const show = active && !__trapEntangled.has(id);
+      __ensureVinesOverlay(id, show);
+      // keep legacy .entangled class for any code that looks for it
+      tok.classList.toggle('entangled', show);
+      if (!active){
+        __trapEntangled.delete(id);
+        if (typeof entangledByCard !== 'undefined') entangledByCard.delete(id);
+      }
+    });
+  }catch(e){}
+}
+setInterval(__reconcileVinesFromStatus, 250);
+</script>
+
+
+
+
+
+
+
+
+<style id="trapCaughtLayerTopFix">
+  #trapCaughtLayer{ position:absolute; left:0; top:0; right:0; bottom:0; pointer-events:none; z-index:2147483647 !important; }
+  .trap-caught{ pointer-events:none; }
+</style>
+
+
+<script>
+// === BGM control (minimal, non-invasive) ===
+(function(){
+  const bgm = document.getElementById('bgmAudio');
+  const btn = document.getElementById('bgmToggle');
+  if (!bgm || !btn) return;
+  try{ bgm.volume = 0.45; }catch(_){}
+  let want = false;
+
+  function reflect(){
+    // If paused or muted, show "Play"; else "Mute"
+    const playing = !bgm.paused && !bgm.muted;
+    btn.textContent = playing ? 'Mute' : 'Play';
+  }
+  function showBtn(){ btn.style.display = 'block'; reflect(); }
+
+  btn.addEventListener('click', function(){
+    if (bgm.paused){
+      want = true;
+      bgm.play().then(reflect).catch(()=>{/* ignore */});
+    } else {
+      // Toggle mute without pausing to keep loop position
+      bgm.muted = !bgm.muted;
+      reflect();
+    }
+  });
+
+  // If the socket is not yet ready, retry
+  (function arm(){
+    try{
+      if (typeof socket === 'undefined' || !socket || !socket.on){ setTimeout(arm, 120); return; }
+      // Start music when a real seat is assigned
+      socket.on('assignRole', function(role){
+        if (role === 'player1' || role === 'player2'){
+          want = true;
+          showBtn();
+          // attempt autoplay; if blocked, user can press Play
+          bgm.play().then(reflect).catch(()=>{/* user gesture required */});
+        }
+      });
+      // Stop music on game over
+      socket.on('gameOver', function(){
+        try{ bgm.pause(); bgm.currentTime = 0; }catch(_){}
+        // keep button visible so user can play again if they want
+        reflect();
+      });
+    }catch(_){ setTimeout(arm, 150); }
+  })();
+
+  // If user clicks anywhere after we've wanted music, retry play()
+  document.addEventListener('pointerdown', function(){
+    if (want && bgm.paused){ bgm.play().then(reflect).catch(()=>{}); }
+  });
+})();
+</script>
+
+
+<script>
+// === Positioning for bgmToggle (SHIFT+drag to move; saved in localStorage) ===
+(function(){
+  const btn = document.getElementById('bgmToggle');
+  if (!btn) return;
+  function applySaved(){
+    try{
+      const raw = localStorage.getItem('bgmToggleOffset');
+      if (!raw) return;
+      const pos = JSON.parse(raw);
+      if (typeof pos.x === 'number') btn.style.setProperty('--bgm-x', pos.x + 'px');
+      if (typeof pos.y === 'number') btn.style.setProperty('--bgm-y', pos.y + 'px');
+    }catch(e){}
+  }
+  applySaved();
+
+  let dragging = false, startX = 0, startY = 0, baseX = 0, baseY = 0;
+  btn.addEventListener('pointerdown', function(e){
+    if (!e.shiftKey) return; // only move when SHIFT is held
+    dragging = true;
+    btn.setPointerCapture(e.pointerId);
+    startX = e.clientX;
+    startY = e.clientY;
+    baseX = parseFloat(getComputedStyle(btn).getPropertyValue('--bgm-x')) || 0;
+    baseY = parseFloat(getComputedStyle(btn).getPropertyValue('--bgm-y')) || 0;
+    e.preventDefault();
+  });
+  btn.addEventListener('pointermove', function(e){
+    if (!dragging) return;
+    const dx = e.clientX - startX;
+    const dy = e.clientY - startY;
+    const nx = Math.round(baseX + dx);
+    const ny = Math.round(baseY + dy);
+    btn.style.setProperty('--bgm-x', nx + 'px');
+    btn.style.setProperty('--bgm-y', ny + 'px');
+  });
+  btn.addEventListener('pointerup', function(e){
+    if (!dragging) return;
+    dragging = false;
+    const x = parseFloat(getComputedStyle(btn).getPropertyValue('--bgm-x')) || 0;
+    const y = parseFloat(getComputedStyle(btn).getPropertyValue('--bgm-y')) || 0;
+    try{ localStorage.setItem('bgmToggleOffset', JSON.stringify({x, y})); }catch(_){}
+  });
+})();
+</script>
+
 </body>
 </html>
+
+<style id="trap-caught-override">
+  /* FINAL override to guarantee caught image is on top and visible */
+  #trapCaughtLayer{ position:absolute; left:0; top:0; right:0; bottom:0; pointer-events:none; z-index: 9999 !important; }
+  .trap-caught{
+    position:absolute; width:104px; height:104px;
+    margin-left:-52px; margin-top:-52px;
+    background: url('/assets/Icons/BearTrapCaught.png') center/contain no-repeat;
+    pointer-events:none; image-rendering:auto;
+  }
+</style>
+
+
+<script id="trap-caught-final-handler">
+(function(){
+  // Ensure a dedicated, always-on-top overlay layer exists
+  function ensureTrapCaughtLayer(){
+    var board = document.getElementById('board') || document.body;
+    var layer = document.getElementById('trapCaughtLayer');
+    if (!layer){
+      layer = document.createElement('div');
+      layer.id = 'trapCaughtLayer';
+      layer.style.position = 'absolute';
+      layer.style.left = '0'; layer.style.top = '0';
+      layer.style.right = '0'; layer.style.bottom = '0';
+      layer.style.pointerEvents = 'none';
+      layer.style.zIndex = '10000';
+      board.appendChild(layer);
+    }
+    return layer;
+  }
+
+  // Optional helper if tile -> screen conversion exists on window
+  function getTileScreenXY(tileId){
+    try{
+      var pos = (window.tilePositions||{})[String(tileId)];
+      if (pos && typeof window.toScreen === 'function'){
+        var s = window.toScreen(pos.x, pos.y);
+        return {x:s.x, y:s.y};
+      }
+    }catch(_){}
+    return null;
+  }
+
+  // Create / place the topmost BearTrapCaught sprite
+  function BT_showCaughtAt(tileId){
+    tileId = String(tileId);
+    var layer = ensureTrapCaughtLayer();
+    if (!layer) return;
+
+    try{
+      if (window.trapCaughtOverlays && window.trapCaughtOverlays.has(tileId)) return;
+    }catch(_){}
+
+    var xy = getTileScreenXY(tileId);
+    if (!xy){
+      // fallback: try a DOM tile element
+      var cell = document.querySelector('[data-tile="'+tileId+'"]') || document.getElementById('tile-'+tileId);
+      if (cell){
+        var rect = cell.getBoundingClientRect();
+        var hostRect = (layer.parentElement || document.body).getBoundingClientRect();
+        xy = { x: (rect.left - hostRect.left) + rect.width/2, y: (rect.top - hostRect.top) + rect.height/2 };
+      }
+    }
+
+    var img = document.createElement('img');
+    img.className = 'bt-caught-img';
+    img.src = '/assets/Icons/BearTrapCaught.png';
+    img.alt = 'Trap triggered';
+    img.draggable = false;
+    img.style.position = 'absolute';
+    img.style.width = '104px'; img.style.height = '104px';
+    img.style.marginLeft = '-52px'; img.style.marginTop = '-52px';
+    if (xy){ img.style.left = xy.x + 'px'; img.style.top = xy.y + 'px'; }
+    layer.appendChild(img);
+
+    try{ (window.trapCaughtOverlays = window.trapCaughtOverlays || new Map()).set(tileId, img); }catch(_){}
+  }
+
+  function bind(){
+    if (window.__BT_TRAP_CAUGHT_BOUND__) return;
+    window.__BT_TRAP_CAUGHT_BOUND__ = true;
+    if (window.socket && typeof window.socket.on === 'function'){
+      window.socket.on('trapTriggered', function(payload){
+        try{
+          if (payload && payload.tile != null) BT_showCaughtAt(String(payload.tile));
+        }catch(_){}
+      });
+    }
+  }
+
+  if (document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', bind, {once:true});
+  } else {
+    bind();
+  }
+})();
+</script>
+
+<style id="trap-caught-override-2">
+  #trapCaughtLayer{ position:absolute; left:0; top:0; right:0; bottom:0; pointer-events:none; z-index: 10000 !important; }
+  img.bt-caught-img{ pointer-events:none; image-rendering:auto; z-index: 10001; }
+</style>
