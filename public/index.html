@@ -233,6 +233,20 @@ LittleBear_PawSwipe: (()=>{
   a.preload = 'auto';
   a.volume = 1.0;
   return a;
+})(),
+
+DeathBlossom_HealingBlossom: (()=>{
+  const a = new Audio('/assets/Sounds/Voice%20Lines/HealingBlossom.mp3');
+  a.preload = 'auto';
+  a.volume = 1.0;
+  return a;
+})(),
+
+LittleBear_BearClaw: (()=>{
+  const a = new Audio('/assets/Sounds/Voice%20Lines/bearclaw.mp3');
+  a.preload = 'auto';
+  a.volume = 1.0;
+  return a;
 })()
 };
 function playVoice(key){
@@ -2352,14 +2366,38 @@ socket.on('fullState', full=>{ renderControlFromState(full);
     });
 
     socket.on('abilityUsed', ({ kind, sourceId, targetId, name })=>{
+/* Death Blossom Healing Blossom voice */
+try{
+  const _hb = String(name || '').toLowerCase().replace(/[\s_]+/g,'');
+  if (_hb === 'healingblossom' && typeof playVoice === 'function'){
+        if (_hb === 'healingblossom' && typeof playVoice === 'function'){
+        playVoice('DeathBlossom_HealingBlossom');
+    }
+}
+}catch(e){}
+
+
+
+/* Little Bear Bear Claw voice */
+try{
+  const _ab = String(name || '').toLowerCase().replace(/[\s_]+/g,'');
+  const _fxb = (statusFX && statusFX.get) ? (statusFX.get(String(sourceId)) || {}) : {};
+  const isBearNow = !!(_fxb.bear && Number(_fxb.bear) > 0);
+  // Play if the ability explicitly reports 'bearclaw' OR we're transformed and using primary alias 'pawswipe'
+  if (((_ab === 'bearclaw') || (_ab === 'pawswipe' && isBearNow)) && typeof playVoice === 'function'){
+    playVoice('LittleBear_BearClaw');
+  }
+}catch(__){}
 /* Little Bear Paw Swipe voice */
 try{
   const _na = String(name || '').toLowerCase().replace(/[\s_]+/g,'');
-  if (_na === 'pawswipe' && typeof playVoice === 'function'){
+  const _fx = (statusFX && statusFX.get) ? (statusFX.get(String(sourceId)) || {}) : {};
+  const isBear = !!(_fx.bear && Number(_fx.bear) > 0);
+  // Only play Paw Swipe when NOT transformed
+  if (_na === 'pawswipe' && !isBear && typeof playVoice === 'function'){
     playVoice('LittleBear_PawSwipe');
   }
 }catch(___){}
-
 /* Voodoo Pincushion voice */
 try{
   const _na = String(name || '').toLowerCase().replace(/[\s_]+/g,'');
