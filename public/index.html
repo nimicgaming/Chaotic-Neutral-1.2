@@ -165,8 +165,71 @@ Loadstone_PolarAttraction: (()=>{
   return a;
 })(),
 
-DeathBlossom_HealingBlossom: (()=>{
-  const a = new Audio('/assets/Sounds/Voice%20Lines/HealingBlossom.mp3');
+DungeonMaster_1D6: (()=>{
+  const a = new Audio('/assets/Sounds/Voice%20Lines/1d6.mp3');
+  a.preload = 'auto';
+  a.volume = 1.0;
+  return a;
+})(),
+
+DungeonMaster_SkillCheck: (()=>{
+  const a = new Audio('/assets/Sounds/Voice%20Lines/skillcheck.mp3');
+  a.preload = 'auto';
+  a.volume = 1.0;
+  return a;
+})(),
+
+LittleBear_Transform: (()=>{
+  const a = new Audio('/assets/Sounds/Voice%20Lines/transform.mp3');
+  a.preload = 'auto';
+  a.volume = 1.0;
+  return a;
+})(),
+
+DonAtore_BloodDonation: (()=>{
+  const a = new Audio('/assets/Sounds/Voice%20Lines/blooddonation.mp3');
+  a.preload = 'auto';
+  a.volume = 1.0;
+  return a;
+})(),
+
+DonAtore_Replenish: (()=>{
+  const a = new Audio('/assets/Sounds/Voice%20Lines/replenish.mp3');
+  a.preload = 'auto';
+  a.volume = 1.0;
+  return a;
+})(),
+
+Aimbot_FMJ: (()=>{
+  const a = new Audio('/assets/Sounds/Voice%20Lines/fmj.mp3');
+  a.preload = 'auto';
+  a.volume = 1.0;
+  return a;
+})(),
+
+Aimbot_TrueShot: (()=>{
+  const a = new Audio('/assets/Sounds/Voice%20Lines/trueshot.mp3');
+  a.preload = 'auto';
+  a.volume = 1.0;
+  return a;
+})(),
+
+Voodoo_VoodooDoll: (()=>{
+  const a = new Audio('/assets/Sounds/Voice%20Lines/voodoodoll.mp3');
+  a.preload = 'auto';
+  a.volume = 1.0;
+  return a;
+})(),
+
+Voodoo_Pincushion: (()=>{
+  const a = new Audio('/assets/Sounds/Voice%20Lines/pincushion.mp3');
+  a.preload = 'auto';
+  a.volume = 1.0;
+  return a;
+})(),
+
+LittleBear_PawSwipe: (()=>{
+  const a = new Audio('/assets/Sounds/Voice%20Lines/pawswipe.mp3');
   a.preload = 'auto';
   a.volume = 1.0;
   return a;
@@ -2289,11 +2352,83 @@ socket.on('fullState', full=>{ renderControlFromState(full);
     });
 
     socket.on('abilityUsed', ({ kind, sourceId, targetId, name })=>{
-/* Death Blossom Healing Blossom voice */
+/* Little Bear Paw Swipe voice */
 try{
-  const _n = String(name || '').toLowerCase().replace(/[\s_]+/g,'');
-  if (_n === 'healingblossom' && typeof playVoice === 'function'){
-    playVoice('DeathBlossom_HealingBlossom');
+  const _na = String(name || '').toLowerCase().replace(/[\s_]+/g,'');
+  if (_na === 'pawswipe' && typeof playVoice === 'function'){
+    playVoice('LittleBear_PawSwipe');
+  }
+}catch(___){}
+
+/* Voodoo Pincushion voice */
+try{
+  const _na = String(name || '').toLowerCase().replace(/[\s_]+/g,'');
+  if (_na === 'pincushion' && typeof playVoice === 'function'){
+    playVoice('Voodoo_Pincushion');
+  }
+}catch(___){}
+
+/* Voodoo Voodoo Doll voice */
+try{
+  const _na = String(name || '').toLowerCase().replace(/[\s_]+/g,'');
+  if (_na === 'voodoodoll' && typeof playVoice === 'function'){
+    playVoice('Voodoo_VoodooDoll');
+  }
+}catch(___){}
+
+/* Aimbot True Shot voice */
+try{
+  const _na = String(name || '').toLowerCase().replace(/[\s_]+/g,'');
+  if (_na === 'trueshot' && typeof playVoice === 'function'){
+    playVoice('Aimbot_TrueShot');
+  }
+}catch(___){}
+
+/* Aimbot FMJ voice */
+try{
+  const _na = String(name || '').toLowerCase().replace(/[\s_]+/g,'');
+  if (_na === 'fmj' && typeof playVoice === 'function'){
+    playVoice('Aimbot_FMJ');
+  }
+}catch(___){}
+
+/* Don Atore Replenish voice */
+try{
+  const _na = String(name || '').toLowerCase().replace(/[\s_]+/g,'');
+  if (_na === 'replenish' && typeof playVoice === 'function'){
+    playVoice('DonAtore_Replenish');
+  }
+}catch(___){}
+
+/* Don Atore Blood Donation voice */
+try{
+  const _na = String(name || '').toLowerCase().replace(/[\s_]+/g,'');
+  if (_na === 'blooddonation' && typeof playVoice === 'function'){
+    playVoice('DonAtore_BloodDonation');
+  }
+}catch(___){}
+
+/* Little Bear Transform voice */
+try{
+  const _nm = String(name || '').toLowerCase().replace(/[\s_]+/g,'');
+  if (_nm === 'transform' && typeof playVoice === 'function'){
+    playVoice('LittleBear_Transform');
+  }
+}catch(__){}
+
+/* Dungeon Master Skill Check voice */
+try{
+  const _nm = String(name || '').toLowerCase().replace(/[\s_]+/g,'');
+  if (_nm === 'skillcheck' && typeof playVoice === 'function'){
+    playVoice('DungeonMaster_SkillCheck');
+  }
+}catch(__){}
+
+/* Dungeon Master 1D6 voice */
+try{
+  const _nm = String(name || '').toLowerCase().replace(/[\s_]+/g,'');
+  if (_nm === '1d6' && typeof playVoice === 'function'){
+    playVoice('DungeonMaster_1D6');
   }
 }catch(__){}
 
