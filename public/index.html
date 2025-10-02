@@ -111,7 +111,7 @@
   <style>
     /* Parchment full-viewport background */
     html, body { height: 100%; }
-    html { background: #111 url('assets/background.png') center / cover no-repeat fixed !important; }
+    html { background-color: #111 !important; }
     body { background: transparent !important; }
   </style>
 
@@ -119,6 +119,56 @@
   #bgmToggle{ transform: translate(var(--bgm-x, 0px), var(--bgm-y, 0px)); }
 </style>
 
+
+<!-- === Map Rotation: Snow / Fairy Grove / Meadow (deterministic per room) === -->
+<script>
+(function(){
+  var CHOICES = [
+    "assets/background_snowmeadow.png",
+    "assets/background_fairymeadow.png",
+    "assets/background_meadow.png"
+  ];
+  function hash32(str){
+    var h = 0;
+    for (var i=0;i<str.length;i++){ h = Math.imul(31,h) + str.charCodeAt(i) | 0; }
+    return (h>>>0);
+  }
+  var qs   = new URLSearchParams(location.search);
+  var room = qs.get("room") || sessionStorage.getItem("cn_room") || localStorage.getItem("cn_room") || "default";
+  var idx  = hash32(String(room)) % CHOICES.length;
+  var IMG  = CHOICES[idx];
+  window.__cnSelectedMap = IMG;
+
+  function applyBg(){
+    try{
+      document.documentElement.style.setProperty(
+        'background',
+        "#111 url('" + IMG + "') center / cover no-repeat fixed",
+        'important'
+      );
+      document.body && document.body.style && document.body.style.setProperty('background', 'transparent', 'important');
+    }catch(_){}
+  }
+  applyBg();
+
+  ['load','focus','visibilitychange','resize'].forEach(function(ev){
+    window.addEventListener(ev, applyBg, {passive:true});
+  });
+  try{
+    var obs = new MutationObserver(function(muts){
+      for (var i=0;i<muts.length;i++){
+        if (muts[i].type === 'attributes' && muts[i].attributeName === 'style'){
+          var cur = String(document.documentElement.style.background || '');
+          if (cur.indexOf(IMG) === -1){ applyBg(); }
+        }
+      }
+    });
+    obs.observe(document.documentElement, { attributes:true, attributeFilter:['style'] });
+  }catch(_){}
+  var _t = setInterval(applyBg, 500);
+  setTimeout(function(){ clearInterval(_t); }, 12000);
+})();
+</script>
 </head>
 <body>
 <script>
@@ -247,7 +297,21 @@ LittleBear_BearClaw: (()=>{
   a.preload = 'auto';
   a.volume = 1.0;
   return a;
-})()
+})(),
+
+  DeathBlossom_HealingBlossom_Ability: (()=>{
+    const a = new Audio('/assets/Sounds/Voice%20Lines/HealingBlossom.mp3');
+    a.preload = 'auto';
+    a.volume = 1.0;
+    return a;
+  })(),
+
+  DungeonMaster_SavingThrow: (()=>{
+    const a = new Audio('/assets/Sounds/Voice%20Lines/savingthrow.mp3');
+    a.preload = 'auto';
+    a.volume = 1.0;
+    return a;
+  })()
 };
 function playVoice(key){
   const a = VOICES[key];
@@ -2366,6 +2430,33 @@ socket.on('fullState', full=>{ renderControlFromState(full);
     });
 
     socket.on('abilityUsed', ({ kind, sourceId, targetId, name })=>{
+            /* Dungeon Master Saving Throw voice */
+            try{
+              const __ab2 = __resolveAbilityName ? __resolveAbilityName() : (typeof name!=='undefined'?name:'');
+              const _sv = String(__ab2 || '').toLowerCase().replace(/[\s_]+/g,'');
+              if (_sv === 'savingthrow' && typeof playVoice === 'function'){
+                playVoice('DungeonMaster_SavingThrow');
+              }
+            }catch(__){}
+        
+            /* Death Blossom Healing Blossom voice (abilityUsed) */
+            try{
+              const __ab = __resolveAbilityName ? __resolveAbilityName() : (typeof name!=='undefined'?name:'');
+              const _hb = String(__ab || '').toLowerCase().replace(/[\s_]+/g,'');
+              if (_hb === 'healingblossom' && typeof playVoice === 'function'){
+                playVoice('DeathBlossom_HealingBlossom_Ability');
+              }
+            }catch(__){}
+        
+            /* __resolveAbilityName helper */
+            const __resolveAbilityName = () => {
+              try{ if (typeof name !== 'undefined' && name) return name; }catch(_){}
+              try{ if (typeof abilityName !== 'undefined' && abilityName) return abilityName; }catch(_){}
+              try{ if (typeof ability !== 'undefined' && ability && (ability.name || ability.key)) return (ability.name || ability.key); }catch(_){}
+              try{ if (typeof data !== 'undefined' && data && (data.abilityName || data.name)) return (data.abilityName || data.name); }catch(_){}
+              return '';
+            };
+        
 /* Death Blossom Healing Blossom voice */
 try{
   const _hb = String(name || '').toLowerCase().replace(/[\s_]+/g,'');
@@ -3510,6 +3601,169 @@ setInterval(__reconcileVinesFromStatus, 250);
     const y = parseFloat(getComputedStyle(btn).getPropertyValue('--bgm-y')) || 0;
     try{ localStorage.setItem('bgmToggleOffset', JSON.stringify({x, y})); }catch(_){}
   });
+})();
+</script>
+
+
+
+<!-- HB_TILE_GATED -->
+<script>
+(function(){
+  try{
+    var HB = { armed:false, tileClicked:false, listener:null, lastPlay:0 };
+
+    function norm(x){ return String(x||'').toLowerCase().replace(/[\s_\-]+/g,''); }
+    function isHB(nameLike){
+      var n = norm(nameLike);
+      return (n === 'healingblossom' || n === 'healingbloom' || n === 'blossom');
+    }
+    function resolveAbility(p){
+      try{
+        if (p && p.name) return p.name;
+        if (p && p.abilityName) return p.abilityName;
+        if (p && p.ability && (p.ability.name || p.ability.key)) return (p.ability.name || p.ability.key);
+        if (p && p.data && (p.data.abilityName || p.data.name)) return (p.data.abilityName || p.data.name);
+      }catch(_){}
+      return '';
+    }
+    function playHB(){
+      var now = Date.now();
+      if (now - HB.lastPlay < 200) return; // small dedupe
+      HB.lastPlay = now;
+      if (typeof playVoice === 'function'){
+        try { playVoice('DeathBlossom_HealingBlossom'); return; } catch(_){}
+      }
+      // Do not add any new audio paths; rely on existing VOICES entries only
+    }
+
+    function attachTileListener(){
+      if (HB.listener) return;
+      HB.listener = function(ev){
+        try{
+          var tile = ev.target && ev.target.closest ? ev.target.closest('.tile') : null;
+          if (tile){ HB.tileClicked = true; }
+        }catch(_){}
+      };
+      var board = document.getElementById('board');
+      if (board && board.addEventListener){
+        board.addEventListener('click', HB.listener, true);
+      }
+    }
+    function detachTileListener(){
+      try{
+        var board = document.getElementById('board');
+        if (HB.listener && board && board.removeEventListener){
+          board.removeEventListener('click', HB.listener, true);
+        }
+      }catch(_){}
+      HB.listener = null;
+    }
+
+    function arm(){ HB.armed = true; HB.tileClicked = false; attachTileListener(); }
+    function disarm(){ HB.armed = false; HB.tileClicked = false; detachTileListener(); }
+
+    // Wrap selectAbility to arm only when Healing Blossom special is pressed
+    var _selectAbility = window.selectAbility;
+    if (typeof _selectAbility === 'function'){
+      window.selectAbility = function(kind, sourceId){
+        try{
+          if (kind === 'special'){
+            var role = (typeof getRoleState==='function' ? getRoleState(sourceId) : null) || (typeof guessRoleFromId==='function' ? guessRoleFromId(sourceId) : null);
+            var displayName = (window.charState && charState.get && charState.get(sourceId) && charState.get(sourceId).name) || '';
+            var meta = (typeof getMeta==='function' ? getMeta(role, displayName) : null);
+            var def = meta && meta.special;
+            var sName = norm(def && def.name);
+            if (isHB(sName) || (def && def.type === 'petal')){
+              arm();
+            }else{
+              disarm();
+            }
+          }else{
+            disarm();
+          }
+        }catch(_){}
+        return _selectAbility.apply(this, arguments);
+      };
+    }
+
+    // Only play after we see both: a tile click (post-arm) and the server's abilityUsed for HB
+    if (window.socket && typeof socket.on === 'function'){
+      socket.on('abilityUsed', function(payload){
+        try{
+          if (!HB.armed) return;
+          if (!HB.tileClicked) return; // must have clicked a tile after arming
+          var ab = resolveAbility(payload);
+          if (isHB(ab)){
+            playHB();
+            disarm();
+          }
+        }catch(_){}
+      });
+    }
+  }catch(_){}
+})();
+</script>
+
+<script>
+// === Healing Blossom: simple client-side audio gate ===
+// Plays only when: (a) Death Blossom's Special is selected, (b) a board tile is clicked,
+// (c) your energy is >= the Special's energyCost. Purely client-side audio; server is authoritative.
+(function(){
+  if (window.__hbVoiceHookInstalled) return;
+  window.__hbVoiceHookInstalled = true;
+
+  function isDeathBlossomSpecial(sel){
+    try{
+      if (!sel || sel.kind !== 'special') return false;
+      const id = sel.sourceId;
+      if (!id) return false;
+      const st = (typeof charState!=='undefined' && charState.get) ? charState.get(String(id)) : null;
+      const name = st && st.name ? String(st.name) : "";
+      if (name !== 'Death Blossom') return false;
+      const role = (typeof getRoleState==='function') ? getRoleState(String(id)) : (typeof guessRoleFromId==='function' ? guessRoleFromId(String(id)) : 'Support');
+      const meta = (typeof getMeta==='function') ? getMeta(role, name) : null;
+      const spec = meta && meta.special ? meta.special : null;
+      if (!spec) return false;
+      const specName = (spec.name || '').toLowerCase();
+      return (specName.includes('healing') || specName.includes('blossom') || spec.type === 'petal');
+    }catch(_){ return false; }
+  }
+
+  function myCurrentEnergy(){
+    try {
+      if (typeof myEnergy === 'function') return myEnergy();
+      if (typeof energyBySeat !== 'undefined' && energyBySeat && playerRole) return energyBySeat[playerRole] || 0;
+      return 0;
+    } catch(_){ return 0; }
+  }
+
+  function currentSpecialCostFor(id){
+    try{
+      const st = (typeof charState!=='undefined' && charState.get) ? (charState.get(String(id)) || {}) : {};
+      const role = (typeof getRoleState==='function') ? getRoleState(String(id)) : (typeof guessRoleFromId==='function' ? guessRoleFromId(String(id)) : 'Support');
+      const meta = (typeof getMeta==='function') ? getMeta(role, st.name) : null;
+      const spec = meta && meta.special ? meta.special : null;
+      return (spec && spec.energyCost) ? Number(spec.energyCost) : 0;
+    }catch(_){ return 0; }
+  }
+
+  document.addEventListener('click', function(ev){
+    try{
+      const tileEl = ev.target.closest ? ev.target.closest('.tile') : null;
+      if (!tileEl) return;
+      if (typeof abilitySel === 'undefined' || !abilitySel) return;
+      if (!isDeathBlossomSpecial(abilitySel)) return;
+
+      const cost = currentSpecialCostFor(abilitySel.sourceId);
+      const have = myCurrentEnergy();
+
+      if (have >= cost){
+        if (typeof playVoice === 'function') playVoice('DeathBlossom_HealingBlossom');
+      } else {
+        try{ if (typeof flashEnergyNotEnough==='function') flashEnergyNotEnough(); }catch(_){}
+      }
+    }catch(_){ /* swallow */ }
+  }, true);
 })();
 </script>
 
