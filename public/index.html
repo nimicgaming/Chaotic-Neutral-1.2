@@ -3,7 +3,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <title>Chaotic Neutral — Game</title>
   <link rel="stylesheet" href="style.css" />
   <style>
@@ -100,7 +100,7 @@
 
   <style>
     .top-home-btn{
-      position:fixed; left:381px; top:8px; z-index:1000;
+      position:fixed; left:900px; top:8px; z-index:1000;
       background:#2a2019; color:#ffe29a; border:1px solid #ffffff22;
       padding:6px 10px; border-radius:10px; font:600 14px system-ui; text-decoration:none;
       box-shadow:0 2px 6px rgba(0,0,0,.3);
@@ -115,9 +115,7 @@
     body { background: transparent !important; }
   </style>
 
-<style id="bgmTogglePositioning">
-  #bgmToggle{ transform: translate(var(--bgm-x, 0px), var(--bgm-y, 0px)); }
-</style>
+
 
 
 <!-- === Map Rotation: Snow / Fairy Grove / Meadow (deterministic per room) === -->
@@ -169,6 +167,38 @@
   setTimeout(function(){ clearInterval(_t); }, 12000);
 })();
 </script>
+
+
+<style id="bgmToggleOnBoard">
+  /* Anchor the volume slider to the board (same place as the old button) */
+  #board { position: relative !important; }
+  #board #volWrap{
+    position: absolute !important;
+    top: 3px;
+    right: 285px;
+    z-index: 120 !important;
+    display:flex; align-items:center; gap:8px;
+    padding: 8px 12px; border-radius:16px;
+    border:1px solid #ffffff33; background:#1d120bcc; color:#efe6d8;
+    box-shadow:0 4px 10px rgba(0,0,0,.35);
+    font-weight:900; font-size:16px;
+  }
+  #board #volWrap input[type="range"]{ width: 90px; }
+</style>
+
+<script id="noZoom">
+(function(){
+  window.addEventListener('wheel', function(e){
+    if (e.ctrlKey || e.metaKey) e.preventDefault();
+  }, { passive:false });
+  window.addEventListener('keydown', function(e){
+    if ((e.ctrlKey||e.metaKey) && ['+','=','-','_','0'].includes(e.key)) e.preventDefault();
+  }, { passive:false });
+  window.addEventListener('gesturestart', function(e){ e.preventDefault(); }, { passive:false });
+  window.addEventListener('gesturechange', function(e){ e.preventDefault(); }, { passive:false });
+  window.addEventListener('gestureend', function(e){ e.preventDefault(); }, { passive:false });
+})();
+</script>
 </head>
 <body>
 <script>
@@ -177,132 +207,132 @@ const VOICES = {
   NectarOfLife: (() => {
     const a = new Audio('/assets/Sounds/Voice%20Lines/NectarOfLife.mp3'); // encode space
     a.preload = 'auto';
-    a.volume = 1.0;
+    a.volume = 0.2;
     return a;
   })(),
 
 Trickster_Sleight_A: (()=>{
   const a = new Audio('/assets/Sounds/Voice%20Lines/IsThisYourCard.mp3');
   a.preload = 'auto';
-  a.volume = 1.0;
+  a.volume = 0.1;
   return a;
 })(),
 Trickster_Sleight_B: (()=>{
   const a = new Audio('/assets/Sounds/Voice%20Lines/WYLTSAMT.mp3');
   a.preload = 'auto';
-  a.volume = 1.0;
+  a.volume = 0.1;
   return a;
 })(),
 
 Trickster_Swap: (()=>{
   const a = new Audio('/assets/Sounds/Voice%20Lines/Abracadabra.mp3');
   a.preload = 'auto';
-  a.volume = 1.0;
+  a.volume = 0.1;
   return a;
 })(),
 
 Loadstone_ReversePolarity: (()=>{
   const a = new Audio('/assets/Sounds/Voice%20Lines/ReversePolarity.mp3');
   a.preload = 'auto';
-  a.volume = 1.0;
+  a.volume = 0.1;
   return a;
 })(),
 
 Loadstone_PolarAttraction: (()=>{
   const a = new Audio('/assets/Sounds/Voice%20Lines/PolarAttraction.mp3');
   a.preload = 'auto';
-  a.volume = 1.0;
+  a.volume = 0.1;
   return a;
 })(),
 
 DungeonMaster_1D6: (()=>{
   const a = new Audio('/assets/Sounds/Voice%20Lines/1d6.mp3');
   a.preload = 'auto';
-  a.volume = 1.0;
+  a.volume = 0.1;
   return a;
 })(),
 
 DungeonMaster_SkillCheck: (()=>{
   const a = new Audio('/assets/Sounds/Voice%20Lines/skillcheck.mp3');
   a.preload = 'auto';
-  a.volume = 1.0;
+  a.volume = 0.1;
   return a;
 })(),
 
 LittleBear_Transform: (()=>{
   const a = new Audio('/assets/Sounds/Voice%20Lines/transform.mp3');
   a.preload = 'auto';
-  a.volume = 1.0;
+  a.volume = 0.1;
   return a;
 })(),
 
 DonAtore_BloodDonation: (()=>{
   const a = new Audio('/assets/Sounds/Voice%20Lines/blooddonation.mp3');
   a.preload = 'auto';
-  a.volume = 1.0;
+  a.volume = 0.1;
   return a;
 })(),
 
 DonAtore_Replenish: (()=>{
   const a = new Audio('/assets/Sounds/Voice%20Lines/replenish.mp3');
   a.preload = 'auto';
-  a.volume = 1.0;
+  a.volume = 0.1;
   return a;
 })(),
 
 Aimbot_FMJ: (()=>{
   const a = new Audio('/assets/Sounds/Voice%20Lines/fmj.mp3');
   a.preload = 'auto';
-  a.volume = 1.0;
+  a.volume = 0.1;
   return a;
 })(),
 
 Aimbot_TrueShot: (()=>{
   const a = new Audio('/assets/Sounds/Voice%20Lines/trueshot.mp3');
   a.preload = 'auto';
-  a.volume = 1.0;
+  a.volume = 0.1;
   return a;
 })(),
 
 Voodoo_VoodooDoll: (()=>{
   const a = new Audio('/assets/Sounds/Voice%20Lines/voodoodoll.mp3');
   a.preload = 'auto';
-  a.volume = 1.0;
+  a.volume = 0.1;
   return a;
 })(),
 
 Voodoo_Pincushion: (()=>{
   const a = new Audio('/assets/Sounds/Voice%20Lines/pincushion.mp3');
   a.preload = 'auto';
-  a.volume = 1.0;
+  a.volume = 0.1;
   return a;
 })(),
 
 LittleBear_PawSwipe: (()=>{
   const a = new Audio('/assets/Sounds/Voice%20Lines/pawswipe.mp3');
   a.preload = 'auto';
-  a.volume = 1.0;
+  a.volume = 0.1;
   return a;
 })(),
 
 DeathBlossom_HealingBlossom: (()=>{
   const a = new Audio('/assets/Sounds/Voice%20Lines/HealingBlossom.mp3');
   a.preload = 'auto';
-  a.volume = 1.0;
+  a.volume = 0.2;
   return a;
 })(),
 
 LittleBear_BearClaw: (()=>{
   const a = new Audio('/assets/Sounds/Voice%20Lines/bearclaw.mp3');
   a.preload = 'auto';
-  a.volume = 1.0;
+  a.volume = 0.1;
   return a;
 })(),
 
-  DeathBlossom_HealingBlossom_Ability: (()=>{
+  DeathBlossom_HealingBlossom: (()=>{
     const a = new Audio('/assets/Sounds/Voice%20Lines/HealingBlossom.mp3');
     a.preload = 'auto';
-    a.volume = 1.0;
+    a.volume = 0.2;
     return a;
   })(),
 
@@ -313,15 +343,29 @@ LittleBear_BearClaw: (()=>{
     return a;
   })()
 };
+
+// --- Fix: Healing Blossom voiceline alias (added by ChatGPT) ---
+try { VOICES.HealingBlossom = VOICES.HealingBlossom || VOICES.DeathBlossom_HealingBlossom; } catch (_) {}
 function playVoice(key){
   const a = VOICES[key];
   if (!a) return;
-  try { a.pause(); a.currentTime = 0; a.play().catch(()=>{}); } catch(_){}
+  try {
+    const mult = (typeof window.__CN_VOL === 'number' ? window.__CN_VOL : 1);
+    if (a.__baseVol == null) a.__baseVol = (typeof a.volume === 'number' ? a.volume : 1);
+    a.volume = Math.max(0, Math.min(1, a.__baseVol * mult));
+    a.pause(); a.currentTime = 0;
+    a.muted = false; a.play().catch(()=>{});
+  } catch(_){}
 }
+
 </script>
 <div id="seriesScoreTop" class="glass"><div class="label">Control Points</div><div class="score"><span id="seriesP1">0</span> — <span id="seriesP2">0</span></div></div>
   <div id="stage">
     <div id="board">
+    <div id="volWrap" class="volWrap" style="display:none">
+  <input id="volSlider" type="range" min="0" max="2" step="0.01" value="1" aria-label="Volume">
+  <span id="volLabel">Sounds</span>
+</div>
     <a id="btnHome" href="/home">⟵ Home</a>
 
     <div class="center-dot"></div>
@@ -378,7 +422,7 @@ function playVoice(key){
   
   <!-- === BGM (match start) === -->
   <audio id="bgmAudio" src="assets/Sounds/Music/Song1.mp3" preload="auto" loop></audio>
-  <button id="bgmToggle" style="position:fixed;top:10px;right:410px;z-index:9999;display:none;padding:4px 8px;border-radius:8px;border:1px solid #ffffff33;background:#1d120bcc;color:#efe6d8;font-weight:900;font-size:11px;box-shadow:0 4px 10px rgba(0,0,0,.35);cursor:pointer;">Mute</button>
+  
 
   <script src="/socket.io/socket.io.js"></script>
 <script>
@@ -1637,6 +1681,21 @@ Cleanse: 'Remove all status effects from a unit (any range)',
         playVoice('NectarOfLife');
       }
     }catch(_){}
+    // --- Ensure Healing Blossom spawns as a *new* card every time ---
+    // We append a zero-width char to the type so the UI treats sequential plays as distinct,
+    // but cardImagePathFor() strips it so the image path stays '/Healing_Blossom.png'.
+    (function(){
+      try {
+        let _n = String(type || '').toLowerCase().replace(/[\s_]+/g,'');
+        const isHB = (_n === 'healingblossom' || _n === 'healingbloom' || _n === 'blossomwall');
+        if (isHB){
+          window.__hbNonce = (window.__hbNonce || 0) + 1;
+          const ZWS = ['\u200B','\u200C','\u200D','\uFEFF'];
+          type = String(type) + ZWS[window.__hbNonce % ZWS.length];
+        }
+      } catch(_) {}
+    })();
+
     if (playerRole === 'player1'){
         if (who === 'player1') renderDiscard(discardSelfSlot, type);
         else if (who === 'player2') renderDiscard(discardOtherSlot, type);
@@ -2444,7 +2503,7 @@ socket.on('fullState', full=>{ renderControlFromState(full);
               const __ab = __resolveAbilityName ? __resolveAbilityName() : (typeof name!=='undefined'?name:'');
               const _hb = String(__ab || '').toLowerCase().replace(/[\s_]+/g,'');
               if (_hb === 'healingblossom' && typeof playVoice === 'function'){
-                playVoice('DeathBlossom_HealingBlossom_Ability');
+                /* audio via broadcast */
               }
             }catch(__){}
         
@@ -2462,7 +2521,7 @@ try{
   const _hb = String(name || '').toLowerCase().replace(/[\s_]+/g,'');
   if (_hb === 'healingblossom' && typeof playVoice === 'function'){
         if (_hb === 'healingblossom' && typeof playVoice === 'function'){
-        playVoice('DeathBlossom_HealingBlossom');
+        /* audio via broadcast */
     }
 }
 }catch(e){}
@@ -3501,109 +3560,87 @@ setInterval(__reconcileVinesFromStatus, 250);
 </style>
 
 
-<script>
-// === BGM control (minimal, non-invasive) ===
+<script id="volumeControl">
 (function(){
   const bgm = document.getElementById('bgmAudio');
-  const btn = document.getElementById('bgmToggle');
-  if (!bgm || !btn) return;
-  try{ bgm.volume = 0.45; }catch(_){}
-  let want = false;
+  const wrap = document.getElementById('volWrap');
+  if (!bgm) return;
 
-  function reflect(){
-    // If paused or muted, show "Play"; else "Mute"
-    const playing = !bgm.paused && !bgm.muted;
-    btn.textContent = playing ? 'Mute' : 'Play';
-  }
-  function showBtn(){ btn.style.display = 'block'; reflect(); }
+  if (bgm.__baseVol == null) bgm.__baseVol = 0.05;
 
-  btn.addEventListener('click', function(){
-    if (bgm.paused){
-      want = true;
-      bgm.play().then(reflect).catch(()=>{/* ignore */});
-    } else {
-      // Toggle mute without pausing to keep loop position
-      bgm.muted = !bgm.muted;
-      reflect();
-    }
-  });
+  const saved = parseFloat(localStorage.getItem('cn_volume') || '1');
+  window.__CN_VOL = isFinite(saved) ? Math.max(0, Math.min(2, saved)) : 1;
 
-  // If the socket is not yet ready, retry
-  (function arm(){
+  function clamp01(x){ return Math.max(0, Math.min(1, x)); }
+
+  function applyBgm(){
     try{
-      if (typeof socket === 'undefined' || !socket || !socket.on){ setTimeout(arm, 120); return; }
-      // Start music when a real seat is assigned
-      socket.on('assignRole', function(role){
+      bgm.muted = false;
+      bgm.volume = clamp01(bgm.__baseVol * window.__CN_VOL);
+    }catch(_){}
+  }
+
+  function applyVoiceVolumes(){
+    try{
+      if (!window.VOICES) return;
+      Object.values(VOICES).forEach(a=>{
+        if (!a) return;
+        if (a.__baseVol == null) a.__baseVol = (typeof a.volume === 'number' ? a.volume : 1);
+        a.volume = clamp01(a.__baseVol * window.__CN_VOL);
+      });
+    }catch(_){}
+  }
+
+  function reflectUI(){
+    const slider = document.getElementById('volSlider');
+    const label  = document.getElementById('volLabel');
+    if (!slider || !label) return;
+    slider.value = String(window.__CN_VOL);
+    label.textContent = 'Sounds';
+  }
+
+  function setVol(mult){
+    window.__CN_VOL = Math.max(0, Math.min(2, parseFloat(mult) || 0));
+    localStorage.setItem('cn_volume', String(window.__CN_VOL));
+    sessionStorage.setItem('cn_volume', String(window.__CN_VOL));
+    applyVoiceVolumes();
+    applyBgm();
+    reflectUI();
+  }
+
+  function armUI(){
+    if (!wrap) return;
+    wrap.style.display = 'flex';
+    const slider = document.getElementById('volSlider');
+    if (slider){ slider.addEventListener('input', e=> setVol(e.target.value)); }
+    reflectUI();
+  }
+
+  (function armSocket(){
+    try{
+      if (typeof socket === 'undefined' || !socket || !socket.on){ setTimeout(armSocket, 120); return; }
+      socket.on('assignRole', (role)=>{
         if (role === 'player1' || role === 'player2'){
-          want = true;
-          showBtn();
-          // attempt autoplay; if blocked, user can press Play
-          bgm.play().then(reflect).catch(()=>{/* user gesture required */});
+          armUI();
+          applyVoiceVolumes();
+          applyBgm();
+          bgm.play().catch(()=>{});
         }
       });
-      // Stop music on game over
-      socket.on('gameOver', function(){
+      socket.on('gameOver', ()=>{
         try{ bgm.pause(); bgm.currentTime = 0; }catch(_){}
-        // keep button visible so user can play again if they want
-        reflect();
       });
-    }catch(_){ setTimeout(arm, 150); }
+    }catch(_){ setTimeout(armSocket, 150); }
   })();
 
-  // If user clicks anywhere after we've wanted music, retry play()
-  document.addEventListener('pointerdown', function(){
-    if (want && bgm.paused){ bgm.play().then(reflect).catch(()=>{}); }
+  document.addEventListener('pointerdown', ()=>{
+    if (bgm.paused){ bgm.play().catch(()=>{}); }
   });
+
+  applyVoiceVolumes(); applyBgm(); reflectUI();
+  window.setCNVolume = setVol;
 })();
 </script>
-
-
-<script>
-// === Positioning for bgmToggle (SHIFT+drag to move; saved in localStorage) ===
-(function(){
-  const btn = document.getElementById('bgmToggle');
-  if (!btn) return;
-  function applySaved(){
-    try{
-      const raw = localStorage.getItem('bgmToggleOffset');
-      if (!raw) return;
-      const pos = JSON.parse(raw);
-      if (typeof pos.x === 'number') btn.style.setProperty('--bgm-x', pos.x + 'px');
-      if (typeof pos.y === 'number') btn.style.setProperty('--bgm-y', pos.y + 'px');
-    }catch(e){}
-  }
-  applySaved();
-
-  let dragging = false, startX = 0, startY = 0, baseX = 0, baseY = 0;
-  btn.addEventListener('pointerdown', function(e){
-    if (!e.shiftKey) return; // only move when SHIFT is held
-    dragging = true;
-    btn.setPointerCapture(e.pointerId);
-    startX = e.clientX;
-    startY = e.clientY;
-    baseX = parseFloat(getComputedStyle(btn).getPropertyValue('--bgm-x')) || 0;
-    baseY = parseFloat(getComputedStyle(btn).getPropertyValue('--bgm-y')) || 0;
-    e.preventDefault();
-  });
-  btn.addEventListener('pointermove', function(e){
-    if (!dragging) return;
-    const dx = e.clientX - startX;
-    const dy = e.clientY - startY;
-    const nx = Math.round(baseX + dx);
-    const ny = Math.round(baseY + dy);
-    btn.style.setProperty('--bgm-x', nx + 'px');
-    btn.style.setProperty('--bgm-y', ny + 'px');
-  });
-  btn.addEventListener('pointerup', function(e){
-    if (!dragging) return;
-    dragging = false;
-    const x = parseFloat(getComputedStyle(btn).getPropertyValue('--bgm-x')) || 0;
-    const y = parseFloat(getComputedStyle(btn).getPropertyValue('--bgm-y')) || 0;
-    try{ localStorage.setItem('bgmToggleOffset', JSON.stringify({x, y})); }catch(_){}
-  });
-})();
-</script>
-
 
 
 <!-- HB_TILE_GATED -->
@@ -3631,7 +3668,7 @@ setInterval(__reconcileVinesFromStatus, 250);
       if (now - HB.lastPlay < 200) return; // small dedupe
       HB.lastPlay = now;
       if (typeof playVoice === 'function'){
-        try { playVoice('DeathBlossom_HealingBlossom'); return; } catch(_){}
+        try { /* audio via broadcast */ return; } catch(_){}
       }
       // Do not add any new audio paths; rely on existing VOICES entries only
     }
@@ -3758,12 +3795,744 @@ setInterval(__reconcileVinesFromStatus, 250);
       const have = myCurrentEnergy();
 
       if (have >= cost){
-        if (typeof playVoice === 'function') playVoice('DeathBlossom_HealingBlossom');
+        if (typeof playVoice === 'function') /* audio via broadcast */
       } else {
         try{ if (typeof flashEnergyNotEnough==='function') flashEnergyNotEnough(); }catch(_){}
       }
     }catch(_){ /* swallow */ }
   }, true);
+})();
+</script>
+
+
+<script id="bgmToggleClearOffsets">
+  // === ChatGPT update: clear stale offset for BGM toggle ===
+  try { localStorage.removeItem('bgmToggleOffset'); } catch (e) {}
+</script>
+
+
+<!-- ===== Voice Consistency Engine (VCE) ===== -->
+<script>
+(function(){
+  // Lightweight utility
+  function norm(x){ return String(x||'').toLowerCase().replace(/[\s_\-]+/g,''); }
+  function clamp(n,min,max){ return n<min?min:(n>max?max:n); }
+
+  // ---- CONFIG (extend freely as you add heroes/abilities) ------------------
+  const VCONF = {
+    // Map normalized ability name -> VOICES key
+    abilityToKey: {
+      'nectaroflife': 'NectarOfLife',
+      'mend'        : 'NectarOfLife',
+      'healingblossom': 'DeathBlossom_HealingBlossom',
+      'healingbloom'  : 'DeathBlossom_HealingBlossom',
+      'blossom'       : 'DeathBlossom_HealingBlossom',
+    },
+    // Map hero:kind -> VOICES key (both normalized)
+    heroKindToKey: {
+      'deathblossom:primary': 'NectarOfLife',
+      'deathblossom:special': 'DeathBlossom_HealingBlossom',
+    },
+    // Server events that may carry ability usage
+    abilityEvents: ['abilityUsed','ability-used','server:abilityUsed','server:ability-used'],
+    // Dedupe window (ms) to avoid double audio if legacy handlers also play
+    dedupeMs: 350
+  };
+
+  // ---- Robust payload resolution ------------------------------------------
+  function resolveAbility(p){
+    try{
+      return p?.name || p?.abilityName ||
+             p?.ability?.name || p?.ability?.key ||
+             p?.data?.abilityName || p?.data?.name || '';
+    }catch(_){ return ''; }
+  }
+  function resolveKind(p){
+    try{
+      return p?.kind || p?.ability?.kind || p?.ability?.type || p?.type || '';
+    }catch(_){ return ''; }
+  }
+  function resolveSourceId(p){
+    try{
+      return (p?.sourceId != null ? String(p.sourceId) :
+              p?.source?.id != null ? String(p.source.id) :
+              p?.actorId != null ? String(p.actorId) : '');
+    }catch(_){ return ''; }
+  }
+  function resolveHeroByPayload(p){
+    try{
+      return p?.hero || p?.heroName || p?.sourceHero || p?.sourceHeroName ||
+             p?.source?.hero?.name || p?.source?.name || p?.actor?.name || '';
+    }catch(_){ return ''; }
+  }
+  function resolveHeroBySourceId(p){
+    try{
+      const sid = resolveSourceId(p);
+      if (sid && window.charState && typeof window.charState.get === 'function'){
+        const cs = window.charState.get(sid);
+        return cs && cs.name || '';
+      }
+    }catch(_){}
+    return '';
+  }
+  function resolveHero(p){
+    return resolveHeroByPayload(p) || resolveHeroBySourceId(p) || '';
+  }
+
+  // ---- Safe local playback that respects THIS client's slider --------------
+  function safePlay(key){
+    try{
+      // Prefer app's provided playVoice if available (handles user slider)
+      if (typeof window.playVoice === 'function'){
+        window.playVoice(key);
+        return;
+      }
+      // Fallback: play via VOICES map if present
+      const VOICES = window.VOICES || window.Voices || window.voices;
+      const a = VOICES && VOICES[key];
+      if (a && typeof a.play === 'function'){
+        try { a.pause(); } catch(_){}
+        try { a.currentTime = 0; } catch(_){}
+        // Apply best-effort volume multiplier if exposed
+        try{
+          const baseVol = (typeof a.volume === 'number' ? a.volume : 1);
+          const slider  = (typeof window.__CN_VOL === 'number' ? window.__CN_VOL : 1);
+          a.volume = clamp(baseVol * slider, 0, 1);
+        }catch(_){}
+        a.play().catch(function(){});
+      }
+    }catch(_){}
+  }
+
+  // ---- Dedupe to avoid stacked audio --------------------------------------
+  const _memo = {};
+  function playOnce(key, ms){
+    const now = Date.now();
+    const win = (ms || VCONF.dedupeMs);
+    if (_memo[key] && now - _memo[key] < win) return;
+    _memo[key] = now;
+    safePlay(key);
+  }
+
+  // ---- Ability routing -----------------------------------------------------
+  function routeVoice(payload){
+    const ab = norm(resolveAbility(payload));
+    const kind = norm(resolveKind(payload));
+    const hero = norm(resolveHero(payload));
+
+    // 1) Ability-name mapping (most reliable when present)
+    if (ab && VCONF.abilityToKey[ab]){
+      playOnce(VCONF.abilityToKey[ab]);
+      return true;
+    }
+    // 2) Hero+kind mapping (covers cases where ability name is missing)
+    if (hero && kind){
+      const hk = hero + ':' + kind;
+      if (VCONF.heroKindToKey[hk]){
+        playOnce(VCONF.heroKindToKey[hk]);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // ---- Event binding (non-invasive) ---------------------------------------
+  function attach(){
+    const s = window.socket;
+    if (!s || typeof s.on !== 'function') return false;
+    VCONF.abilityEvents.forEach(function(evt){
+      try{ s.on(evt, routeVoice); }catch(_){}
+    });
+    return true;
+  }
+
+  // ---- Autoplay unlock (first user gesture warms audio) -------------------
+  function unlockOnce(){
+    if (unlockOnce._did) return;
+    unlockOnce._did = true;
+    try{
+      const keys = ['NectarOfLife','DeathBlossom_HealingBlossom'];
+      const VOICES = window.VOICES || window.Voices || window.voices || {};
+      keys.forEach(function(k){
+        const a = VOICES[k];
+        if (a && typeof a.play === 'function'){
+          // Attempt a silent pre-play to satisfy autoplay policies; ignore errors
+          try{ a.muted = true; a.play().then(()=>{ a.pause(); a.currentTime = 0; a.muted = false; }).catch(()=>{}); }catch(_){}
+        }
+      });
+    }catch(_){}
+  }
+  window.addEventListener('pointerdown', unlockOnce, { once:true, capture:true });
+  window.addEventListener('keydown', unlockOnce, { once:true, capture:true });
+
+  // ---- Initialize ----------------------------------------------------------
+  if (!attach()){
+    let tries = 0;
+    const iv = setInterval(function(){
+      tries++;
+      if (attach() || tries > 120){ // ~6s @50ms
+        clearInterval(iv);
+      }
+    }, 50);
+  }
+})();
+</script>
+<!-- ===== /Voice Consistency Engine (VCE) ===== -->
+
+
+<!-- DB_VOICE_HARDLINK -->
+<script>
+(function(){
+  const TAG = '[DB-VoiceHardLink]';
+  function norm(x){ return String(x||'').toLowerCase().replace(/[\s_\-]+/g,''); }
+  function resolveAbility(p){
+    try{
+      return p?.name || p?.abilityName || p?.ability?.name || p?.ability?.key || p?.data?.abilityName || p?.data?.name || '';
+    }catch(_){ return ''; }
+  }
+  function resolveKind(p){
+    try{ return p?.kind || p?.ability?.kind || p?.ability?.type || p?.type || ''; }catch(_){ return ''; }
+  }
+  function resolveSourceId(p){
+    try{
+      return (p?.sourceId != null ? String(p.sourceId) :
+              p?.source?.id != null ? String(p.source.id) :
+              p?.actorId != null ? String(p.actorId) : '');
+    }catch(_){ return ''; }
+  }
+  function heroFromStateBySourceId(p){
+    try{
+      const sid = resolveSourceId(p);
+      const cs = sid && window.charState && window.charState.get && window.charState.get(String(sid));
+      return cs && cs.name || '';
+    }catch(_){ return ''; }
+  }
+  function resolveHero(p){
+    try{
+      return p?.hero || p?.heroName || p?.sourceHero || p?.sourceHeroName ||
+             p?.source?.hero?.name || p?.source?.name || p?.actor?.name || '' || heroFromStateBySourceId(p);
+    }catch(_){ return heroFromStateBySourceId(p); }
+  }
+  function looksLikeDB(payload){
+    const ab = norm(resolveAbility(payload));
+    const hero = norm(resolveHero(payload));
+    return (hero === 'deathblossom') ||
+           (ab === 'healingblossom' || ab === 'healingbloom' || ab === 'blossom' || ab === 'nectaroflife' || ab === 'mend');
+  }
+  function selectKey(payload){
+    const ab = norm(resolveAbility(payload));
+    const kind = norm(resolveKind(payload));
+    if (ab === 'nectaroflife' || ab === 'mend' || kind === 'primary') return 'NectarOfLife';
+    if (ab === 'healingblossom' || ab === 'healingbloom' || ab === 'blossom' || kind === 'special') return 'DeathBlossom_HealingBlossom';
+    return null;
+  }
+  function now(){ return Date.now(); }
+
+  // Hard-play: attempt up to 3 times in short succession.
+  function hardPlay(key){
+    const attempts = [0, 150, 400];
+    attempts.forEach((delay,i)=>{
+      setTimeout(function(){
+        try{
+          if (typeof window.playVoice === 'function'){ window.playVoice(key); }
+          else {
+            const VOICES = window.VOICES || window.voices || window.Voices || {};
+            const a = VOICES[key];
+            if (a && typeof a.play === 'function'){
+              if (a.__baseVol == null) a.__baseVol = (typeof a.volume === 'number' ? a.volume : 1);
+              const mult = (typeof window.__CN_VOL === 'number' ? window.__CN_VOL : 1);
+              a.volume = Math.max(0, Math.min(1, a.__baseVol * mult));
+              try{ a.pause(); a.currentTime = 0; }catch(_){}
+              a.muted = false;
+              a.play().catch(()=>{});
+            }
+          }
+          if (window.__DEV_LOG_DB) console.log(TAG, 'played', key, 'attempt', i+1);
+        }catch(_){
+          if (window.__DEV_LOG_DB) console.log(TAG, 'play error', key, _);
+        }
+      }, delay);
+    });
+  }
+
+  function attach(){
+    const s = window.socket;
+    if (!s || (typeof s.on !== 'function')) return false;
+
+    // Prefer onAny if available (captures all ability events regardless of custom name)
+    if (typeof s.onAny === 'function'){
+      s.onAny(function(evt, payload){
+        try{
+          if (evt && String(evt).toLowerCase().includes('ability')){
+            if (!looksLikeDB(payload)) return;
+            const key = selectKey(payload);
+            if (key){ hardPlay(key); }
+          }
+        }catch(_){}
+      });
+    }
+
+    // Also bind the canonical names
+    ['abilityUsed','ability-used','server:abilityUsed','server:ability-used'].forEach(function(evt){
+      try{
+        s.on(evt, function(payload){
+          try{
+            if (!looksLikeDB(payload)) return;
+            const key = selectKey(payload);
+            if (key){ hardPlay(key); }
+          }catch(_){}
+        });
+      }catch(_){}
+    });
+
+    return true;
+  }
+
+  if (!attach()){
+    let tries = 0;
+    const iv = setInterval(function(){
+      tries++;
+      if (attach() || tries > 200) clearInterval(iv);
+    }, 50);
+  }
+})();
+</script>
+
+
+<!-- VOICE_BROADCAST_DB_UNIFIED -->
+<script>
+(function(){
+  if (!window.socket || typeof socket.on !== 'function') return;
+  function norm(x){ return String(x||'').toLowerCase().replace(/[\s_\-]+/g,''); }
+  function resolveAbility(p){
+    try{
+      return p?.name || p?.abilityName ||
+             p?.ability?.name || p?.ability?.key ||
+             p?.data?.abilityName || p?.data?.name || '';
+    }catch(_){ return ''; }
+  }
+  function resolveKind(p){
+    try{ return p?.kind || p?.ability?.kind || p?.ability?.type || p?.type || ''; }catch(_){ return ''; }
+  }
+  function resolveSourceId(p){
+    try{
+      return (p?.sourceId != null ? String(p.sourceId) :
+              p?.source?.id != null ? String(p.source.id) :
+              p?.actorId != null ? String(p.actorId) : '');
+    }catch(_){ return ''; }
+  }
+  function resolveHeroByPayload(p){
+    try{
+      return p?.hero || p?.heroName || p?.sourceHero || p?.sourceHeroName ||
+             p?.source?.hero?.name || p?.source?.name || p?.actor?.name || '';
+    }catch(_){ return ''; }
+  }
+  function resolveHeroBySourceId(p){
+    try{
+      const sid = resolveSourceId(p);
+      if (sid && window.charState && typeof window.charState.get === 'function'){
+        const cs = window.charState.get(sid);
+        return cs && cs.name || '';
+      }
+    }catch(_){}
+    return '';
+  }
+  function resolveHero(p){ return resolveHeroByPayload(p) || resolveHeroBySourceId(p) || ''; }
+
+  const _memo = {};
+  function playOnce(key){
+    const now = Date.now();
+    if (_memo[key] && now - _memo[key] < 350) return;
+    _memo[key] = now;
+    try{ if (typeof playVoice === 'function') playVoice(key); }catch(_){}
+  }
+
+  function onAbility(payload){
+    try{
+      const ab = norm(resolveAbility(payload));
+      const kind = norm(resolveKind(payload));
+      const hero = norm(resolveHero(payload));
+
+      // Prefer ability name
+      if (ab === 'healingblossom' || ab === 'healingbloom' || ab === 'blossom'){
+        playOnce('DeathBlossom_HealingBlossom'); return;
+      }
+      if (ab === 'nectaroflife' || ab === 'mend'){
+        playOnce('NectarOfLife'); return;
+      }
+
+      // Fallback: hero + kind
+      if (norm(hero) === 'deathblossom'){
+        if (kind === 'special') playOnce('DeathBlossom_HealingBlossom');
+        else if (kind === 'primary') playOnce('NectarOfLife');
+      }
+    }catch(_){}
+  }
+
+  ['abilityUsed','ability-used','server:abilityUsed','server:ability-used'].forEach(function(evt){
+    try{ socket.on(evt, onAbility); }catch(_){}
+  });
+})();
+</script>
+
+
+<!-- CN_VOICE_FINAL -->
+<script>
+(function(){
+  // Normalize utility
+  function norm(x){ return String(x||'').toLowerCase().replace(/[\s_\-]+/g,''); }
+
+  // Decide the VOICE key to play based on payload
+  function pickVoiceKey(payload){
+    try{
+      const ab = norm(payload?.name || payload?.abilityName || payload?.ability?.name || payload?.ability?.key || payload?.data?.abilityName || payload?.data?.name);
+      const kind = norm(payload?.kind || payload?.ability?.kind || payload?.ability?.type || payload?.type);
+      // Ability name path first
+      if (ab === 'healingblossom' || ab === 'healingbloom' || ab === 'blossom') return 'DeathBlossom_HealingBlossom';
+      if (ab === 'nectaroflife' || ab === 'mend') return 'NectarOfLife';
+      // Fallback to hero+kind
+      const sid = (payload?.sourceId != null ? String(payload.sourceId) : (payload?.source?.id != null ? String(payload.source.id) : ''));
+      let hero = norm(payload?.hero || payload?.heroName || payload?.sourceHero || payload?.sourceHeroName || payload?.source?.hero?.name || payload?.source?.name || payload?.actor?.name || '');
+      if (!hero && sid && window.charState && typeof window.charState.get === 'function'){
+        try{
+          const cs = window.charState.get(String(sid));
+          hero = norm(cs && cs.name);
+        }catch(_){}
+      }
+      if (hero === 'deathblossom'){
+        if (kind === 'special') return 'DeathBlossom_HealingBlossom';
+        if (kind === 'primary') return 'NectarOfLife';
+      }
+    }catch(_){}
+    return null;
+  }
+
+  // Safe local playback respecting THIS tab's slider
+  function playLocal(key){
+    try{
+      if (typeof window.playVoice === 'function'){ window.playVoice(key); return; }
+      const VOICES = window.VOICES || window.voices || window.Voices || {};
+      const a = VOICES[key];
+      if (!a || typeof a.play !== 'function') return;
+      if (a.__baseVol == null) a.__baseVol = (typeof a.volume === 'number' ? a.volume : 1);
+      const mult = (typeof window.__CN_VOL === 'number' ? window.__CN_VOL : 1);
+      a.volume = Math.max(0, Math.min(1, a.__baseVol * mult));
+      try{ a.pause(); a.currentTime = 0; }catch(_){}
+      a.muted = false;
+      a.play().catch(()=>{});
+    }catch(_){}
+  }
+
+  // Dedupe on event signature to avoid stacking
+  const seen = new Map();
+  function sigOf(evt, payload){
+    const id = (payload && (payload.id || payload.uuid || payload.eventId || payload.ts || payload.time)) || '';
+    const ab = norm(payload?.name || payload?.abilityName || payload?.ability?.name || payload?.ability?.key || payload?.data?.abilityName || payload?.data?.name);
+    const k  = norm(payload?.kind || payload?.ability?.kind || payload?.ability?.type || payload?.type);
+    const s  = (payload?.sourceId != null ? String(payload.sourceId) : (payload?.source?.id != null ? String(payload.source.id) : ''));
+    return [evt, id, ab, k, s].join('|');
+  }
+  function dedupe(evt, payload, winMs){
+    const now = Date.now();
+    const sig = sigOf(evt, payload);
+    const last = seen.get(sig) || 0;
+    if (now - last < (winMs||400)) return true;
+    seen.set(sig, now);
+    if (seen.size > 200){
+      for (const [k,t] of seen){
+        if (now - t > 5000) seen.delete(k);
+      }
+    }
+    return false;
+  }
+
+  function handle(evt, payload){
+    try{
+      const key = pickVoiceKey(payload);
+      if (!key) return;
+      if (dedupe(evt, payload, 350)) return;
+      // Triple attempt to ride over render ticks
+      [0,160,380].forEach((delay)=> setTimeout(()=> playLocal(key), delay));
+    }catch(_){}
+  }
+
+  function attach(){
+    const s = window.socket;
+    if (!s || typeof s.on !== 'function') return false;
+
+    // Canonical names
+    ['abilityUsed','ability-used','server:abilityUsed','server:ability-used'].forEach(function(evt){
+      try{ s.on(evt, (payload)=> handle(evt, payload)); }catch(_){}
+    });
+
+    // onAny fallback
+    try{
+      if (typeof s.onAny === 'function'){
+        s.onAny(function(evt, payload){
+          if (!evt || String(evt).toLowerCase().indexOf('ability') === -1) return;
+          handle(evt, payload);
+        });
+      }
+    }catch(_){}
+
+    return true;
+  }
+
+  // Wait until socket exists
+  if (!attach()){
+    let tries = 0;
+    const iv = setInterval(function(){
+      tries++;
+      if (attach() || tries > 140){ // ~7s
+        clearInterval(iv);
+      }
+    }, 50);
+  }
+})();
+</script>
+
+
+<!-- CN_DB_STATE_CORRELATOR -->
+<script>
+(function(){
+  const TAG='[DB-STATE]';
+  function norm(x){ return String(x||'').toLowerCase().replace(/[\s_\-]+/g,''); }
+  function play(key){
+    try{ if (typeof window.playVoice === 'function') window.playVoice(key); }catch(_){}
+  }
+  function isDBId(id){
+    try{
+      const cs = (window.charState && window.charState.get && window.charState.get(String(id))) || null;
+      return !!(cs && norm(cs.name) === 'deathblossom');
+    }catch(_){ return false; }
+  }
+
+  const lastAbility = { ts:0, sourceId:null, kind:'', isDB:false };
+  const lastHP = new Map();
+  let lastBlossomCount = 0;
+
+  function markAbility(p){
+    try{
+      lastAbility.ts = Date.now();
+      lastAbility.sourceId = (p && (p.sourceId != null ? String(p.sourceId) :
+                                    p.source && p.source.id != null ? String(p.source.id) : null)) || null;
+      lastAbility.kind = norm(p && (p.kind || (p.ability && (p.ability.kind || p.ability.type)) || p.type || ''));
+      lastAbility.isDB = lastAbility.sourceId && isDBId(lastAbility.sourceId);
+    }catch(_){}
+  }
+
+  function onAbilityUsed(payload){
+    markAbility(payload);
+    // If special from DB, play immediately (event-driven)
+    if (lastAbility.isDB && lastAbility.kind === 'special'){
+      play('DeathBlossom_HealingBlossom');
+    }
+  }
+
+  function onFullState(full){
+    try{
+      const arr = (full && (full.blossomPinkWalls || full.blossomWalls || []) ) || [];
+      const count = Array.isArray(arr) ? arr.length : 0;
+      if (count > lastBlossomCount){
+        // New blossoms appeared; if recent DB ability, ensure playback
+        if (Date.now() - lastAbility.ts < 2000 && lastAbility.isDB){
+          play('DeathBlossom_HealingBlossom');
+        }
+      }
+      lastBlossomCount = count;
+      // Also seed HP map from full.hp if present
+      if (full && full.hp){
+        try{ Object.entries(full.hp).forEach(([id,hp])=> lastHP.set(String(id), Number(hp))); }catch(_){}
+      }
+    }catch(_){}
+  }
+
+  function onHPUpdate(p){
+    try{
+      const id = String(p && p.id || '');
+      const hp = Number(p && p.hp);
+      if (!id) return;
+      const prev = lastHP.has(id) ? Number(lastHP.get(id)) : null;
+      lastHP.set(id, hp);
+      if (prev != null && hp > prev){
+        // Someone healed. If DB used an ability very recently, assume it's Nectar of Life.
+        if (Date.now() - lastAbility.ts < 1500 && lastAbility.isDB){
+          play('NectarOfLife');
+        }
+      }
+    }catch(_){}
+  }
+
+  function attach(){
+    const s = window.socket;
+    if (!s || typeof s.on !== 'function') return false;
+    try{ s.on('abilityUsed', onAbilityUsed); }catch(_){}
+    try{ s.on('fullState', onFullState); }catch(_){}
+    try{ s.on('hpUpdate', onHPUpdate); }catch(_){}
+    try{ s.on('nextTurn', function(){ lastBlossomCount = 0; }); }catch(_){}
+    return true;
+  }
+
+  if (!attach()){
+    let tries = 0;
+    const iv = setInterval(function(){
+      tries++;
+      if (attach() || tries > 160) clearInterval(iv);
+    }, 50);
+  }
+})();
+</script>
+\n
+
+
+
+<!-- CN_DISCARD_VOICELINES -->
+<script>
+(function(){
+  if (window.__CN_WRAP_RENDER_DISCARD) return;
+  window.__CN_WRAP_RENDER_DISCARD = true;
+
+  // Global dedupe for Healing Blossom across ALL callers (1s window)
+  (function installHBDedupe(){
+    try{
+      if (window.__HB_DEDUPE_INSTALLED) return;
+      window.__HB_DEDUPE_INSTALLED = true;
+      const orig = window.playVoice;
+      if (typeof orig === 'function'){
+        let lastHB = 0;
+        window.playVoice = function(key){
+          try{
+            const k = String(key||'');
+            if (k === 'DeathBlossom_HealingBlossom' || k === 'DeathBlossom_HealingBlossom_Ability'){
+              const now = Date.now();
+              if (now - lastHB < 1000) return; // suppress rapid duplicates
+              lastHB = now;
+            }
+          }catch(_){}
+          return orig.apply(this, arguments);
+        };
+      }
+    }catch(_){}
+  })();
+
+  function norm(x){ return String(x||'').toLowerCase().replace(/[\s_\-]+/g,''); }
+  const _memo = {};
+  function playOnce(key, ms){
+    const now = Date.now();
+    const win = ms || 350;
+    if (_memo[key] && now - _memo[key] < win) return;
+    _memo[key] = now;
+    try{ if (typeof window.playVoice === 'function') window.playVoice(key); }catch(_){}
+  }
+
+  // Track last-seen card per discard slot so we only fire when it CHANGES
+  const lastSeenBySlot = new WeakMap();
+
+  try{
+    const orig = window.renderDiscard || renderDiscard;
+    if (typeof orig === 'function'){
+      window.__origRenderDiscard = orig;
+      window.renderDiscard = function(slotEl, type){
+        const ret = orig.apply(this, arguments);
+        try{
+          let cur = '';
+          if (type) {
+            cur = norm(type);
+          } else if (slotEl && slotEl.querySelector) {
+            const img = slotEl.querySelector('img.discardImg, img');
+            cur = norm(img && img.alt);
+          }
+
+          const prev = lastSeenBySlot.has(slotEl) ? lastSeenBySlot.get(slotEl) : '';
+          if (cur !== prev){
+            lastSeenBySlot.set(slotEl, cur || '');
+            if (cur === 'nectaroflife' || cur === 'mend'){
+              playOnce('NectarOfLife', 350);
+            } else if (cur === 'healingblossom' || cur === 'healingbloom' || cur === 'blossom'){
+              playOnce('DeathBlossom_HealingBlossom', 350);
+            }
+          } else if (!lastSeenBySlot.has(slotEl)) {
+            // Initialize without playing
+            lastSeenBySlot.set(slotEl, cur || '');
+          }
+        }catch(_){}
+        return ret;
+      };
+    }
+  }catch(_){}
+})();
+</script>
+
+
+
+
+
+<script>
+// --- Global Healing Blossom spawn VO v3 (added by ChatGPT) ---
+(function(){
+  try{
+    if (window.__HB_VO_OBS3) return;
+    window.__HB_VO_OBS3 = true;
+
+    // Safety alias so the key resolves
+    try { VOICES.HealingBlossom = VOICES.HealingBlossom || VOICES.DeathBlossom_HealingBlossom; } catch (_){}
+
+    function _norm(s){ return String(s||'').toLowerCase().replace(/[\s_]+/g,''); }
+    function _isHBName(n){ n=_norm(n); return n==='healingblossom'||n==='healingbloom'||n==='blossomwall'; }
+
+    function _currentHBCount(){
+      let count = 0;
+      try{
+        // Any explicit card elements by data-card name
+        const cards = document.querySelectorAll('[data-card]');
+        cards.forEach(el=>{ if (_isHBName(el.dataset.card)) count++; });
+
+        // Any IMG elements referencing Healing_Blossom.png
+        const imgs = document.querySelectorAll('img');
+        imgs.forEach(img=>{
+          const src = img.getAttribute('src') || img.src || '';
+          if (/\bHealing_Blossom\.png\b/i.test(src)) count++;
+        });
+      }catch(_){}
+      return count;
+    }
+
+    let prev = _currentHBCount();
+    let timer = null;
+
+    function scheduleCheck(){
+      if (timer) clearTimeout(timer);
+      // Debounce to wait for DOM to settle after moves/animations
+      timer = setTimeout(()=>{
+        try{
+          const now = _currentHBCount();
+          if (now > prev){
+            if (typeof window.playVoice === 'function'){
+              window.playVoice('HealingBlossom');
+            }
+          }
+          prev = now; // update either way
+        }catch(_){}
+      }, 120);
+    }
+
+    const obs = new MutationObserver((muts)=>{
+      // We don't inspect each mutation; just schedule a consolidated check
+      scheduleCheck();
+    });
+
+    obs.observe(document.documentElement || document.body, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      // Tight scope: only these attrs could convert a node into an HB image/card
+      attributeFilter: ['src','data-card']
+    });
+
+    // Initialize baseline after load
+    scheduleCheck();
+
+  }catch(_){}
 })();
 </script>
 

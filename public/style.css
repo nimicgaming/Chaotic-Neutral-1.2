@@ -837,12 +837,15 @@ body.asP2 .token[data-owner="player1"]{
 
 /* === Unified centering container (matches Home) === */
 #stage{
-  position:fixed;
+position:fixed;
   inset:0;
   display:grid;
-  place-items:center; /* centers #board horizontally & vertically */
+  place-items: start center; /* centers #board horizontally & vertically */
   pointer-events:none; /* container itself is inert */
   z-index:0;
+  align-items: start;
+  justify-items: center;
+
 }
 #stage > #board{ pointer-events:auto; } /* allow gameplay inside */
 
@@ -904,3 +907,7 @@ img.bt-caught-img{ pointer-events:none; z-index: 10001; }
   animation: vineSway 2.5s ease-in-out infinite;
   z-index: 1; /* keep behind text/buttons */
 }
+
+/* === Top spacing removal overrides (auto-generated) === */
+html, body { margin-top: 0 !important; padding-top: 0 !important; }
+#stage { margin-top: 0 !important; padding-top: 0 !important; }

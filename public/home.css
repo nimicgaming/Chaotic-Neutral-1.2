@@ -137,3 +137,36 @@ button:disabled{ opacity:.55; cursor:not-allowed; }
 
 /* Hide role label under the character name */
 .profile-card .p-role{ display:none !important; }
+
+/* --- Click-to-select roster UX (added) --- */
+.selbar{ display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+.sel-pill{ display:flex; align-items:center; gap:6px; padding:6px 10px; border-radius:999px;
+  background:rgba(255,255,255,.10); border:1px solid #ffffff33; color:#fff; font-weight:800; }
+.sel-pill .slot{ opacity:.9; font-size:12px; font-weight:700; }
+.sel-pill .name{ font-weight:900; }
+.sel-help{ font-size:12px; opacity:.85; margin-top:6px; }
+
+/* Hide the old form row but keep it in DOM so game logic still reads the selects */
+#legacyHeroSelects{ display:none !important; }
+
+/* Visual highlight on chosen cards */
+.profile-card.is-selected{ outline:3px solid var(--accent); outline-offset:2px; position:relative; }
+/* removed 'Selected' badge as requested */
+
+
+/* --- Hover glow around enlarged image ONLY when card is selected --- */
+.profile-card.is-selected .p-img{ position:relative; }
+.profile-card.is-selected .p-img::after{
+  content:""; position:absolute; inset:0; border:3px solid var(--accent); border-radius:12px;
+  pointer-events:none; transform:scale(1); opacity:0;
+  transition: transform .2s ease, opacity .15s ease, box-shadow .2s ease;
+  z-index:58; /* above image, below tooltip */
+}
+/* When selected AND hovered, match the image zoom and add a soft glow */
+.profile-card.is-selected:hover .p-img::after{
+  opacity:1; transform:scale(2.4);
+  box-shadow:
+    0 0 10px var(--accent),
+    0 0 22px rgba(255,215,114,.65),
+    0 0 36px rgba(255,215,114,.35);
+}

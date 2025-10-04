@@ -936,5 +936,170 @@ document.addEventListener('DOMContentLoaded', renderRoster);
 
 
 
+
+<script>
+// --- Click-on-roster selection (non-breaking; keeps existing mechanics intact) ---
+(function(){
+  // Utilities
+  const slug = (s)=> String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'');
+  const valueFromName = (name)=> slug(name);
+  const nameFromValue = (val)=> {
+    // Use roster data (DESC) if available, else read card titles
+    if (window.DESC){
+      for (const k of Object.keys(DESC)){
+        if (slug(k) === slug(val)) return k;
+      }
+    }
+    // fallback: scan roster DOM
+    const cards = document.querySelectorAll('#rosterGroups .profile-card .p-name');
+    for (const el of cards){ const nm = (el.textContent||'').trim(); if (slug(nm)===slug(val)) return nm; }
+    return null;
+  };
+  const roleOf = (name)=> {
+    if (window.DESC && DESC[name]) return String(DESC[name].role||'').toLowerCase();
+    // fallback: read role text under name
+    const card = Array.from(document.querySelectorAll('#rosterGroups .profile-card')).find(c => (c.querySelector('.p-name')?.textContent||'').trim()===name);
+    const rtxt = card?.querySelector('.p-role')?.textContent || '';
+    const r = String(rtxt||'').toLowerCase();
+    if (r.includes('tank')) return 'tank';
+    if (r.includes('support')) return 'support';
+    return 'dps';
+  };
+
+  // Grab the four hidden selects; keep using them as the single source for the networking layer
+  const selTank = document.getElementById('tank');
+  const selD1   = document.getElementById('dps1');
+  const selD2   = document.getElementById('dps2');
+  const selSup  = document.getElementById('support');
+
+  // Hide the legacy selects row (but leave in DOM)
+  try {
+    const row = selTank && selTank.closest('.row');
+    if (row) { row.id = 'legacyHeroSelects'; }
+  } catch(e){}
+
+  // Inject a compact "Selected Team" bar
+  function ensureSelBar(){
+    if (document.getElementById('selBar')) return document.getElementById('selBar');
+    const hostCard = document.querySelector('.grid .card'); // first card = Private Lobby
+    if (!hostCard) return null;
+    const bar = document.createElement('div');
+    bar.id = 'selBar';
+    bar.className = 'room-box';
+    bar.innerHTML = `
+      <div style="font-weight:900;margin-bottom:6px">Your Team</div>
+      <div class="selbar">
+        <div class="sel-pill" data-slot="tank"><span class="slot">Tank</span> <span class="name" id="uiTank">—</span></div>
+        <div class="sel-pill" data-slot="dps1"><span class="slot">DPS #1</span> <span class="name" id="uiD1">—</span></div>
+        <div class="sel-pill" data-slot="dps2"><span class="slot">DPS #2</span> <span class="name" id="uiD2">—</span></div>
+        <div class="sel-pill" data-slot="support"><span class="slot">Support</span> <span class="name" id="uiSup">—</span></div>
+      </div>
+      <div class="sel-help">Pick 1 Tank, 2 DPS, and 1 Support by clicking cards in the roster. Click a selected card again to remove it.</div>
+    `;
+    hostCard.appendChild(bar);
+    return bar;
+  }
+
+  const state = { tank:null, dps:[], support:null };
+
+  // Sync UI chips + card highlights + hidden selects
+  function reflect(){
+    // chips
+    const setText = (id, t)=>{ const el = document.getElementById(id); if (el) el.textContent = t || '—'; };
+    setText('uiTank', state.tank);
+    setText('uiD1', state.dps[0] || '');
+    setText('uiD2', state.dps[1] || '');
+    setText('uiSup', state.support);
+
+    // highlights
+    document.querySelectorAll('#rosterGroups .profile-card').forEach(c => {
+      const nm = (c.querySelector('.p-name')?.textContent||'').trim();
+      const on = (nm === state.tank) || (nm === state.support) || state.dps.includes(nm);
+      c.classList.toggle('is-selected', !!on);
+    });
+
+    // push into the hidden selects so existing code keeps working
+    if (selTank) selTank.value = state.tank ? valueFromName(state.tank) : selTank.value;
+    if (selD1)   selD1.value   = state.dps[0] ? valueFromName(state.dps[0]) : selD1.value;
+    if (selD2)   selD2.value   = state.dps[1] ? valueFromName(state.dps[1]) : selD2.value;
+    if (selSup)  selSup.value  = state.support ? valueFromName(state.support) : selSup.value;
+
+    // maintain distinct DPS (also updates selects if equal)
+    try{ if (typeof ensureDistinctDPS === 'function') ensureDistinctDPS(); }catch(e){}
+  }
+
+  // Initialize state from current selects (defaults or persisted)
+  function initFromSelects(){
+    // start empty; do not copy from hidden selects
+    state.tank = null; state.dps = []; state.support = null; reflect();
+  }
+
+  // Card click handler
+  function onCardClick(ev){
+    const card = ev.target.closest('.profile-card');
+    if (!card) return;
+    const name = (card.querySelector('.p-name')?.textContent||'').trim();
+    const role = roleOf(name);
+
+    if (role === 'tank'){
+      state.tank = (state.tank === name) ? null : name;
+    } else if (role === 'support'){
+      state.support = (state.support === name) ? null : name;
+    } else { // dps
+      const idx = state.dps.indexOf(name);
+      if (idx >= 0){
+        state.dps.splice(idx,1);
+      } else if (state.dps.length < 2){
+        state.dps.push(name);
+      } else {
+        // replace the older pick (FIFO)
+        state.dps.shift();
+        state.dps.push(name);
+      }
+    }
+    reflect();
+  }
+
+  // Before starting a match, validate selection (optional gentle check)
+  function validTeam(){
+    return !!(state.tank && state.support && state.dps.length === 2 && state.dps[0] !== state.dps[1]);
+  }
+  function showToastSafe(msg){
+    try{
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.style.display = 'block';
+      setTimeout(()=> t.style.display = 'none', 2200);
+    }catch(e){ alert(msg); }
+  }
+
+  // Hook Host/Join/Quick to warn if incomplete (doesn't change existing behavior)
+  function attachGate(btnId){
+    const b = document.getElementById(btnId);
+    if (!b) return;
+    b.addEventListener('click', (ev)=>{
+      if (!validTeam()){
+        showToastSafe('Pick 1 Tank, 2 DPS, and 1 Support by clicking the roster.');
+        // Prevent accidental send
+        ev.stopPropagation();
+        ev.preventDefault();
+        return false;
+      }
+      return true;
+    }, { capture:true });
+  }
+
+  document.addEventListener('DOMContentLoaded', ()=>{
+    ensureSelBar();
+    initFromSelects();
+    const roster = document.getElementById('rosterGroups');
+    if (roster) roster.addEventListener('click', onCardClick);
+    attachGate('hostBtn');
+    attachGate('joinBtn');
+    attachGate('quickBtn');
+  });
+})();
+</script>
+
 </body>
 </html>
